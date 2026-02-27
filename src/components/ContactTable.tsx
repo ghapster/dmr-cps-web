@@ -58,14 +58,15 @@ export function ContactTable({ radioIds, analogContacts, onUpdateRadioId }: Prop
         </div>
       </div>
 
-      {/* Analog Contacts */}
+      {/* DTMF Contacts */}
       <div>
-        <h3 className="text-xs text-text-muted uppercase tracking-wider mb-2">Analog Contacts</h3>
+        <h3 className="text-xs text-text-muted uppercase tracking-wider mb-2">DTMF Contacts</h3>
         <div className="overflow-auto rounded border border-border">
           <table className="w-full text-xs">
             <thead className="bg-surface-light">
               <tr>
                 <th className="px-3 py-1.5 text-left text-[10px] uppercase tracking-wider text-text-muted w-12">#</th>
+                <th className="px-3 py-1.5 text-left text-[10px] uppercase tracking-wider text-text-muted">Code</th>
                 <th className="px-3 py-1.5 text-left text-[10px] uppercase tracking-wider text-text-muted">Name</th>
               </tr>
             </thead>
@@ -73,13 +74,14 @@ export function ContactTable({ radioIds, analogContacts, onUpdateRadioId }: Prop
               {analogContacts.map(ac => (
                 <tr key={ac.index} className="border-t border-border/50 hover:bg-surface-light/50">
                   <td className="px-3 py-1.5 text-text-muted">{ac.index}</td>
+                  <td className="px-3 py-1.5 tabular-nums font-medium">{ac.code}</td>
                   <td className="px-3 py-1.5">{ac.name}</td>
                 </tr>
               ))}
               {analogContacts.length === 0 && (
                 <tr>
-                  <td colSpan={2} className="px-3 py-4 text-center text-text-muted">
-                    No analog contacts
+                  <td colSpan={3} className="px-3 py-4 text-center text-text-muted">
+                    No DTMF contacts
                   </td>
                 </tr>
               )}

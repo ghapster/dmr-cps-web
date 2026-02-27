@@ -130,32 +130,41 @@ for (let i = 0; i < zoneCount; i++) {
   pos += recSize;
 }
 
-// ─── Parse Scan Lists ──────────────────────────────────────────────────────
+// ─── Parse Scan Lists (CORRECTED FORMAT) ───────────────────────────────────
 const scanListCount = view.getUint8(pos);
 pos += 1;
 
 console.log(`\nSCAN LISTS: ${scanListCount}`);
+const scanListRecordSizes: number[] = [];
 for (let i = 0; i < scanListCount; i++) {
   const idx = view.getUint8(pos);
   const { name, nameLen } = readName(pos + 1);
   const nameTotalBytes = nameFieldSize(nameLen);
-  const headerOffset = pos + 1 + nameTotalBytes;
-  const chCount = view.getUint8(headerOffset + 0x0B);
-  const recSize = 1 + nameTotalBytes + 0x0E + chCount * 2;
+  // 7 settings + 4 timing + 1 count byte
+  const settingsOffset = pos + 1 + nameTotalBytes;
+  const timingOffset = settingsOffset + 7;
+  const chCount = view.getUint8(timingOffset + 4);
+  const entriesSize = chCount * 3; // flag(1) + uint16_le(2) per entry
+  const recSize = 1 + nameTotalBytes + 7 + 4 + 1 + entriesSize;
   console.log(`  [${idx}] ${name} — ${chCount} channels`);
+  scanListRecordSizes.push(recSize);
   pos += recSize;
 }
 
-// ─── Parse Analog Contacts ─────────────────────────────────────────────────
-const analogContactCount = view.getUint8(pos);
+// ─── Parse DTMF Contacts ───────────────────────────────────────────────────
+const dtmfContactCount = view.getUint8(pos);
 pos += 1;
 
-console.log(`\nANALOG CONTACTS: ${analogContactCount}`);
-for (let i = 0; i < analogContactCount; i++) {
+console.log(`\nDTMF CONTACTS: ${dtmfContactCount}`);
+const dtmfRecordSizes: number[] = [];
+for (let i = 0; i < dtmfContactCount; i++) {
   const idx = view.getUint8(pos);
-  const { name, nameLen } = readName(pos + 1);
-  const recSize = 1 + nameFieldSize(nameLen);
-  console.log(`  [${idx}] ${name}`);
+  const codeLen = view.getUint8(pos + 1);
+  const code = String.fromCharCode(...Array.from({length: codeLen}, (_, j) => view.getUint8(pos + 2 + j)));
+  const { name, nameLen } = readName(pos + 2 + codeLen);
+  const recSize = 1 + 1 + codeLen + nameFieldSize(nameLen);
+  console.log(`  [${idx}] Code="${code}" Name="${name}"`);
+  dtmfRecordSizes.push(recSize);
   pos += recSize;
 }
 
@@ -219,27 +228,20 @@ for (let i = 0; i < zoneCount; i++) {
   rPos += recSize;
 }
 
-// Scan list count + records
+// Scan list count + records (CORRECTED FORMAT)
 outputParts.push(new Uint8Array(buffer, rPos, 1));
 rPos += 1;
 for (let i = 0; i < scanListCount; i++) {
-  const { nameLen } = readName(rPos + 1);
-  const nameTotalBytes = nameFieldSize(nameLen);
-  const hdrOff = rPos + 1 + nameTotalBytes;
-  const chCnt = view.getUint8(hdrOff + 0x0B);
-  const recSize = 1 + nameTotalBytes + 0x0E + chCnt * 2;
-  outputParts.push(new Uint8Array(buffer, rPos, recSize));
-  rPos += recSize;
+  outputParts.push(new Uint8Array(buffer, rPos, scanListRecordSizes[i]));
+  rPos += scanListRecordSizes[i];
 }
 
-// Analog contact count + records
+// DTMF contact count + records
 outputParts.push(new Uint8Array(buffer, rPos, 1));
 rPos += 1;
-for (let i = 0; i < analogContactCount; i++) {
-  const { nameLen } = readName(rPos + 1);
-  const recSize = 1 + nameFieldSize(nameLen);
-  outputParts.push(new Uint8Array(buffer, rPos, recSize));
-  rPos += recSize;
+for (let i = 0; i < dtmfContactCount; i++) {
+  outputParts.push(new Uint8Array(buffer, rPos, dtmfRecordSizes[i]));
+  rPos += dtmfRecordSizes[i];
 }
 
 // Trailing

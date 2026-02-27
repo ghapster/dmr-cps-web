@@ -51,13 +51,17 @@ export interface ScanList {
   index: number;
   name: string;
   channelIndices: number[];
-  _header: Uint8Array;       // 0x0E bytes of priority/timing settings
+  entryFlags: number[];        // flag byte per channel entry (0 or 1)
+  _settings: Uint8Array;       // 7 bytes of priority/settings
+  _timing: Uint8Array;         // 4 bytes of timing settings
   _raw: Uint8Array;
+  _nameLen: number;
 }
 
 export interface AnalogContact {
   index: number;
   name: string;
+  code: string;    // DTMF dial code (e.g. "12345")
   _raw: Uint8Array;
 }
 

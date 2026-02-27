@@ -309,33 +309,45 @@ function parseScanLists(
     // Name follows index
     const { name, nameLen } = readName(view, pos + 1);
     const nameTotalBytes = nameFieldSize(nameLen);
-    const headerOffset = pos + 1 + nameTotalBytes;
 
-    if (headerOffset + 0x0E > view.byteLength) {
-      throw new Error(`Scan list ${i} ("${name}"): header extends past end of file`);
+    // 7 bytes of settings after name
+    const settingsOffset = pos + 1 + nameTotalBytes;
+    if (settingsOffset + 7 > view.byteLength) {
+      throw new Error(`Scan list ${i} ("${name}"): settings extend past end of file`);
     }
+    const _settings = new Uint8Array(buffer.slice(settingsOffset, settingsOffset + 7));
 
-    // 14-byte header (priority channels, timing, etc.)
-    const _header = new Uint8Array(buffer.slice(headerOffset, headerOffset + 0x0E));
+    // 4 bytes of timing after settings
+    const timingOffset = settingsOffset + 7;
+    if (timingOffset + 4 > view.byteLength) {
+      throw new Error(`Scan list ${i} ("${name}"): timing extends past end of file`);
+    }
+    const _timing = new Uint8Array(buffer.slice(timingOffset, timingOffset + 4));
 
-    // Channel count is at relative offset 0x0B within the 14-byte header
-    const channelCount = view.getUint8(headerOffset + 0x0B);
-    const channelListOffset = headerOffset + 0x0E;
-    const channelListSize = channelCount * 2;
+    // 1 byte channel count after timing
+    const channelCount = view.getUint8(timingOffset + 4);
 
-    if (channelListOffset + channelListSize > view.byteLength) {
-      throw new Error(`Scan list ${i} ("${name}"): channel list extends past end of file`);
+    // Channel entries: 3 bytes each (flag + uint16_le channel index)
+    const entriesOffset = timingOffset + 5;
+    const entriesSize = channelCount * 3;
+
+    if (entriesOffset + entriesSize > view.byteLength) {
+      throw new Error(`Scan list ${i} ("${name}"): channel entries extend past end of file`);
     }
 
     const channelIndices: number[] = [];
+    const entryFlags: number[] = [];
     for (let c = 0; c < channelCount; c++) {
-      channelIndices.push(view.getUint16(channelListOffset + c * 2, true));
+      const flag = view.getUint8(entriesOffset + c * 3);
+      const chIdx = view.getUint16(entriesOffset + c * 3 + 1, true);
+      entryFlags.push(flag);
+      channelIndices.push(chIdx);
     }
 
-    const recordSize = 1 + nameTotalBytes + 0x0E + channelListSize;
+    const recordSize = 1 + nameTotalBytes + 7 + 4 + 1 + entriesSize;
     const _raw = new Uint8Array(buffer.slice(pos, pos + recordSize));
 
-    scanLists.push({ index, name, channelIndices, _header, _raw });
+    scanLists.push({ index, name, channelIndices, entryFlags, _settings, _timing, _raw, _nameLen: nameLen });
     pos += recordSize;
   }
 
@@ -348,7 +360,7 @@ function parseAnalogContacts(
   offset: number,
 ): { analogContacts: AnalogContact[]; bytesConsumed: number } {
   if (offset + 1 > view.byteLength) {
-    throw new Error(`Cannot read analog contact count at offset ${offset}: past end of file`);
+    throw new Error(`Cannot read DTMF contact count at offset ${offset}: past end of file`);
   }
 
   const count = view.getUint8(offset);
@@ -356,28 +368,38 @@ function parseAnalogContacts(
   const analogContacts: AnalogContact[] = [];
 
   for (let i = 0; i < count; i++) {
-    if (pos + 1 > view.byteLength) {
-      throw new Error(`Analog contact ${i}: extends past end of file at offset ${pos}`);
+    if (pos + 2 > view.byteLength) {
+      throw new Error(`DTMF contact ${i}: extends past end of file at offset ${pos}`);
     }
 
+    // Format: index(1) + codeLen(1) + code(codeLen) + name(var+null)
     const index = view.getUint8(pos);
+    const codeLen = view.getUint8(pos + 1);
 
-    // Name follows index
-    const { name, nameLen } = readName(view, pos + 1);
+    if (pos + 2 + codeLen > view.byteLength) {
+      throw new Error(`DTMF contact ${i}: code extends past end of file`);
+    }
+
+    // Read DTMF code
+    const codeBytes: number[] = [];
+    for (let j = 0; j < codeLen; j++) {
+      codeBytes.push(view.getUint8(pos + 2 + j));
+    }
+    const code = String.fromCharCode(...codeBytes);
+
+    // Read name after code
+    const { name, nameLen } = readName(view, pos + 2 + codeLen);
     const nameTotalBytes = nameFieldSize(nameLen);
 
-    // Since this is the last section, consume whatever trailing data belongs to
-    // this record. We know at minimum there's an index byte + name. Some records
-    // may have trailing settings bytes. Be lenient: just capture index + name.
-    const recordSize = 1 + nameTotalBytes;
+    const recordSize = 1 + 1 + codeLen + nameTotalBytes;
 
     if (pos + recordSize > view.byteLength) {
-      throw new Error(`Analog contact ${i} ("${name}"): record extends past end of file`);
+      throw new Error(`DTMF contact ${i} ("${name}"): record extends past end of file`);
     }
 
     const _raw = new Uint8Array(buffer.slice(pos, pos + recordSize));
 
-    analogContacts.push({ index, name, _raw });
+    analogContacts.push({ index, name, code, _raw });
     pos += recordSize;
   }
 
