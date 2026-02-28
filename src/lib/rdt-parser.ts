@@ -405,7 +405,7 @@ function parseAnalogContacts(
 
     const _raw = new Uint8Array(buffer.slice(pos, pos + recordSize));
 
-    analogContacts.push({ index, name, code, _raw });
+    analogContacts.push({ index, name, code, _raw, _nameLen: nameLen, _codeLen: codeLen });
     pos += recordSize;
   }
 
@@ -755,7 +755,7 @@ function parseRoaming(
     const { text: name } = readNullTermString(view, chStart);
     const _raw = new Uint8Array(buffer.slice(chStart, chEnd));
 
-    roamingChannels.push({ index: i + 1, name, _raw });
+    roamingChannels.push({ index: i + 1, name, _raw, _nameLen: name.length });
     pos = chEnd;
   }
 
@@ -796,7 +796,7 @@ function parseRoaming(
     }
 
     const _raw = new Uint8Array(buffer.slice(zoneStart, zoneEnd));
-    roamingZones.push({ index: 0, name: zoneName, channelIndices, _raw });
+    roamingZones.push({ index: 0, name: zoneName, channelIndices, _raw, _nameLen: zoneName.length });
     pos = zoneEnd;
   }
 

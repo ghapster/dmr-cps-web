@@ -13,7 +13,7 @@ import { DigitalContactEditor } from './components/DigitalContactEditor';
 import { TextMessageEditor } from './components/TextMessageEditor';
 import { GroupListEditor } from './components/GroupListEditor';
 import { AprsEditor } from './components/AprsEditor';
-import { RoamingViewer } from './components/RoamingViewer';
+import { RoamingEditor } from './components/RoamingEditor';
 
 function App() {
   const {
@@ -23,6 +23,7 @@ function App() {
     updateZone, updateRadioId, updateTextMessage,
     updateDigitalContact, updateAprsSettings,
     updateScanList, updateGroupList,
+    updateAnalogContact, updateRoamingChannel, updateRoamingZone,
     undo, redo, canUndo, canRedo,
   } = useCodeplug();
 
@@ -131,6 +132,7 @@ function App() {
             radioIds={[]}
             analogContacts={codeplug.analogContacts}
             onUpdateRadioId={updateRadioId}
+            onUpdateAnalogContact={updateAnalogContact}
           />
         );
       case 'scanLists':
@@ -172,9 +174,11 @@ function App() {
         );
       case 'roaming':
         return (
-          <RoamingViewer
+          <RoamingEditor
             roamingChannels={codeplug.roamingChannels}
             roamingZones={codeplug.roamingZones}
+            onUpdateRoamingChannel={updateRoamingChannel}
+            onUpdateRoamingZone={updateRoamingZone}
           />
         );
       case 'settings':

@@ -4,9 +4,10 @@ interface Props {
   radioIds: RadioId[];
   analogContacts: AnalogContact[];
   onUpdateRadioId: (index: number, changes: Partial<RadioId>) => void;
+  onUpdateAnalogContact?: (index: number, changes: Partial<AnalogContact>) => void;
 }
 
-export function ContactTable({ radioIds, analogContacts, onUpdateRadioId }: Props) {
+export function ContactTable({ radioIds, analogContacts, onUpdateRadioId, onUpdateAnalogContact }: Props) {
   return (
     <div className="space-y-6">
       {/* Radio IDs */}
@@ -74,8 +75,22 @@ export function ContactTable({ radioIds, analogContacts, onUpdateRadioId }: Prop
               {analogContacts.map(ac => (
                 <tr key={ac.index} className="border-t border-border-subtle hover:bg-surface-light/50">
                   <td className="px-4 py-2 text-text-dimmed font-mono text-xs">{ac.index}</td>
-                  <td className="px-4 py-2 tabular-nums font-medium font-mono">{ac.code}</td>
-                  <td className="px-4 py-2">{ac.name}</td>
+                  <td className="px-4 py-2 tabular-nums font-medium font-mono">
+                    <input
+                      type="text"
+                      value={ac.code}
+                      onChange={e => onUpdateAnalogContact?.(ac.index, { code: e.target.value.slice(0, ac._codeLen) })}
+                      className="bg-transparent border-none outline-none text-sm w-28 tabular-nums font-mono"
+                    />
+                  </td>
+                  <td className="px-4 py-2">
+                    <input
+                      type="text"
+                      value={ac.name}
+                      onChange={e => onUpdateAnalogContact?.(ac.index, { name: e.target.value.slice(0, 16) })}
+                      className="bg-transparent border-none outline-none text-sm w-48"
+                    />
+                  </td>
                 </tr>
               ))}
               {analogContacts.length === 0 && (

@@ -63,6 +63,8 @@ export interface AnalogContact {
   name: string;
   code: string;    // DTMF dial code (e.g. "12345")
   _raw: Uint8Array;
+  _nameLen: number;
+  _codeLen: number;
 }
 
 export interface DigitalContact {
@@ -116,6 +118,7 @@ export interface RoamingChannel {
   index: number;
   name: string;
   _raw: Uint8Array;
+  _nameLen: number;
 }
 
 export interface RoamingZone {
@@ -123,6 +126,7 @@ export interface RoamingZone {
   name: string;
   channelIndices: number[];
   _raw: Uint8Array;
+  _nameLen: number;
 }
 
 export interface Codeplug {

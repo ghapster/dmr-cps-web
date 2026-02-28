@@ -4,6 +4,7 @@ import type {
   RadioId,
   Zone,
   ScanList,
+  AnalogContact,
   AprsSettings,
   RepeaterMode,
   ChannelMode,
@@ -211,10 +212,10 @@ function computeTotalSize(codeplug: Codeplug): number {
     size += 1 + slNameBytes + 7 + 4 + 1 + sl.channelIndices.length * 3;
   }
 
-  // Analog contact count (1 byte) + analog contact records
+  // Analog contact count (1 byte) + analog contact records (computed dynamically)
   size += 1;
   for (const ac of codeplug.analogContacts) {
-    size += ac._raw.byteLength;
+    size += 1 + 1 + ac._codeLen + nameFieldSize(ac._nameLen);
   }
 
   // Digital contacts (entire section blob, patched in place)
@@ -238,8 +239,13 @@ function computeTotalSize(codeplug: Codeplug): number {
   // APRS settings (entire section blob)
   size += codeplug._aprsRaw.byteLength;
 
-  // Roaming (entire section blob)
-  size += codeplug._roamingRaw.byteLength;
+  // Roaming (sum of individual record _raw sizes)
+  for (const rc of codeplug.roamingChannels) {
+    size += rc._raw.byteLength;
+  }
+  for (const rz of codeplug.roamingZones) {
+    size += rz._raw.byteLength;
+  }
 
   // Trailing bytes
   size += codeplug._trailingBytes.byteLength;
@@ -319,6 +325,37 @@ function serializeRadioId(radioId: RadioId): Uint8Array {
   // _raw size = 1 (index) + 3 (dmrId) + nameFieldLen, so nameFieldLen = _raw.length - 4
   const nameFieldLen = radioId._raw.byteLength - 4;
   writeAscii(view, 0x04, radioId.name, nameFieldLen);
+
+  return buf;
+}
+
+// ---------------------------------------------------------------------------
+// Analog contact (DTMF) serializer
+// ---------------------------------------------------------------------------
+
+function serializeAnalogContact(ac: AnalogContact): Uint8Array {
+  // Format: index(1) + codeLen(1) + code(codeLen) + name(nameFieldSize)
+  const nameTotalBytes = nameFieldSize(ac._nameLen);
+  const recordSize = 1 + 1 + ac._codeLen + nameTotalBytes;
+
+  const buf = new Uint8Array(recordSize);
+  const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  let pos = 0;
+
+  // Index
+  view.setUint8(pos, ac.index);
+  pos += 1;
+
+  // Code length
+  view.setUint8(pos, ac._codeLen);
+  pos += 1;
+
+  // Code — write into codeLen bytes, null-pad if new code is shorter
+  writeAscii(view, pos, ac.code, ac._codeLen);
+  pos += ac._codeLen;
+
+  // Name
+  writeAscii(view, pos, ac.name, nameTotalBytes);
 
   return buf;
 }
@@ -598,14 +635,15 @@ export function writeRdt(codeplug: Codeplug): ArrayBuffer {
   }
 
   // -----------------------------------------------------------------------
-  // 7. Analog Contacts (copy _raw verbatim)
+  // 7. Analog Contacts (serialized dynamically)
   // -----------------------------------------------------------------------
   view.setUint8(pos, codeplug.analogContacts.length);
   pos += 1;
 
   for (const ac of codeplug.analogContacts) {
-    bytes.set(ac._raw, pos);
-    pos += ac._raw.byteLength;
+    const record = serializeAnalogContact(ac);
+    bytes.set(record, pos);
+    pos += record.byteLength;
   }
 
   // -----------------------------------------------------------------------
@@ -662,10 +700,24 @@ export function writeRdt(codeplug: Codeplug): ArrayBuffer {
   }
 
   // -----------------------------------------------------------------------
-  // 12. Roaming (copy entire section blob verbatim)
+  // 12. Roaming (patch names in _raw copies)
   // -----------------------------------------------------------------------
-  bytes.set(codeplug._roamingRaw, pos);
-  pos += codeplug._roamingRaw.byteLength;
+  for (const rc of codeplug.roamingChannels) {
+    const buf = new Uint8Array(rc._raw.byteLength);
+    buf.set(rc._raw);
+    // Patch name at offset 0 (name is at the start of the record, null-terminated)
+    patchString(buf, 0, rc._nameLen, rc.name);
+    bytes.set(buf, pos);
+    pos += buf.byteLength;
+  }
+  for (const rz of codeplug.roamingZones) {
+    const buf = new Uint8Array(rz._raw.byteLength);
+    buf.set(rz._raw);
+    // Patch zone name at offset 0 (name is at the start, null-terminated)
+    patchString(buf, 0, rz._nameLen, rz.name);
+    bytes.set(buf, pos);
+    pos += buf.byteLength;
+  }
 
   // -----------------------------------------------------------------------
   // 13. Trailing bytes

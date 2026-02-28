@@ -17,16 +17,16 @@ A browser-based codeplug editor for the **Anytone D578UV** DMR radio. Open, edit
 
 | Section | Status | Notes |
 |---------|--------|-------|
-| Channels | **Editable** | Inline editing (name, RX/TX freq, mode, power, CC, TS). Sort, filter by mode/search, multi-select delete, duplicate. |
+| Channels | **Editable** | Inline editing (name, RX/TX freq, mode, power, CC, TS). Sort, filter by mode/search, multi-select delete, add new, duplicate. |
 | Zones | **Editable** | Add/remove/reorder channels within zones. |
 | Radio IDs | **Editable** | Edit DMR ID and name. |
-| DTMF Contacts | Read-only | Displays code and name. |
+| DTMF Contacts | **Editable** | Edit DTMF code and name (length capped at original). |
 | Digital Contacts | **Editable** | Edit DMR ID and Call Type (group/private). Names use proprietary encoding — not yet decoded. |
-| Scan Lists | Read-only | View scan list membership. |
+| Scan Lists | **Editable** | Add/remove/reorder channels within scan lists. |
 | Text Messages | **Editable** | Edit message text (144 char max). |
-| Group Lists | Read-only | View contact membership. |
+| Group Lists | **Editable** | Add/remove contacts within group lists. |
 | APRS | **Editable** | GPS message, destination, callsign, SSID, paths, comment. Field length limits enforced. |
-| Roaming | Read-only | View roaming channels and zones. |
+| Roaming | **Editable** | Edit roaming channel and zone names (length capped at original). |
 | Settings | Read-only | File header info + hex dump of settings block. |
 
 ## Tech Stack
@@ -76,10 +76,10 @@ src/
 │   ├── ContactTable.tsx           Radio IDs + DTMF contacts
 │   ├── DigitalContactEditor.tsx   DMR contacts (call type + ID)
 │   ├── TextMessageEditor.tsx      Text message editor
-│   ├── ScanListEditor.tsx         Scan list viewer
-│   ├── GroupListViewer.tsx        Group list viewer
+│   ├── ScanListEditor.tsx         Scan list editor (add/remove/reorder channels)
+│   ├── GroupListEditor.tsx        Group list editor (add/remove contacts)
 │   ├── AprsEditor.tsx             APRS settings form
-│   ├── RoamingViewer.tsx          Roaming channels/zones viewer
+│   ├── RoamingEditor.tsx          Roaming channels/zones editor
 │   └── SettingsViewer.tsx         File header + settings hex dump
 ├── hooks/
 │   └── useCodeplug.ts             State management (load, save, undo/redo, edit, validate)
@@ -95,11 +95,11 @@ src/
 
 ### Phase 2 — Full Editing
 
-- [ ] Add new channels (not just edit/duplicate existing)
-- [ ] Scan list editing (add/remove/reorder channels)
-- [ ] Group list editing (add/remove contacts)
-- [ ] DTMF contact editing
-- [ ] Roaming channel/zone editing
+- [x] Add new channels (not just edit/duplicate existing)
+- [x] Scan list editing (add/remove/reorder channels)
+- [x] Group list editing (add/remove contacts)
+- [x] DTMF contact editing
+- [x] Roaming channel/zone editing
 - [ ] Settings editing (power-on message, display settings, key assignments, etc.)
 - [ ] Digital contact name decoding (proprietary encoding — needs reverse engineering)
 

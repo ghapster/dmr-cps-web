@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
-import type { Codeplug, Channel, Zone, RadioId, DigitalContact, AprsSettings, ScanList, GroupList, ValidationIssue } from '../lib/types';
+import type { Codeplug, Channel, Zone, RadioId, AnalogContact, DigitalContact, AprsSettings, ScanList, GroupList, RoamingChannel, RoamingZone, ValidationIssue } from '../lib/types';
 import { parseRdt } from '../lib/rdt-parser';
 import { writeRdt, downloadBlob } from '../lib/rdt-writer';
 import { validateCodeplug } from '../lib/validator';
@@ -164,6 +164,33 @@ export function useCodeplug() {
     }));
   }, [updateCodeplug]);
 
+  const updateAnalogContact = useCallback((index: number, changes: Partial<AnalogContact>) => {
+    updateCodeplug(cp => ({
+      ...cp,
+      analogContacts: cp.analogContacts.map(ac =>
+        ac.index === index ? { ...ac, ...changes } : ac
+      ),
+    }));
+  }, [updateCodeplug]);
+
+  const updateRoamingChannel = useCallback((index: number, changes: Partial<RoamingChannel>) => {
+    updateCodeplug(cp => ({
+      ...cp,
+      roamingChannels: cp.roamingChannels.map(rc =>
+        rc.index === index ? { ...rc, ...changes } : rc
+      ),
+    }));
+  }, [updateCodeplug]);
+
+  const updateRoamingZone = useCallback((index: number, changes: Partial<RoamingZone>) => {
+    updateCodeplug(cp => ({
+      ...cp,
+      roamingZones: cp.roamingZones.map(rz =>
+        rz.index === index ? { ...rz, ...changes } : rz
+      ),
+    }));
+  }, [updateCodeplug]);
+
   const undo = useCallback(() => {
     setState(s => {
       if (!s.codeplug || undoStack.current.length === 0) return s;
@@ -198,6 +225,9 @@ export function useCodeplug() {
     updateAprsSettings,
     updateScanList,
     updateGroupList,
+    updateAnalogContact,
+    updateRoamingChannel,
+    updateRoamingZone,
     updateCodeplug,
     undo,
     redo,
