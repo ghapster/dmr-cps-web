@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import type { Channel, ChannelMode } from '../lib/types';
 
 type SortKey = 'index' | 'name' | 'rxFrequency' | 'txFrequency' | 'mode' | 'power' | 'colorCode' | 'timeSlot';
@@ -9,7 +9,7 @@ interface Props {
   onUpdateChannel: (index: number, changes: Partial<Channel>) => void;
   onDeleteChannels: (indices: number[]) => void;
   onDuplicateChannel: (index: number) => void;
-  onAddChannel: () => void;
+  onAddChannel: () => number; // returns the new channel's index
 }
 
 function EditableCell({ value, onCommit, type = 'text', options }: {
@@ -68,6 +68,31 @@ export function ChannelTable({ channels, onUpdateChannel, onDeleteChannels, onDu
   const [filter, setFilter] = useState('');
   const [modeFilter, setModeFilter] = useState<'all' | ChannelMode>('all');
   const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [highlightIndex, setHighlightIndex] = useState<number | null>(null);
+  const highlightTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  // Scroll into view when a row is highlighted
+  const highlightRef = useCallback((el: HTMLTableRowElement | null) => {
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, []);
+
+  // Clear highlight after animation
+  useEffect(() => {
+    if (highlightIndex !== null) {
+      highlightTimerRef.current = setTimeout(() => setHighlightIndex(null), 2000);
+      return () => clearTimeout(highlightTimerRef.current);
+    }
+  }, [highlightIndex]);
+
+  const handleAddChannel = () => {
+    // Clear filters so the new channel is visible
+    setFilter('');
+    setModeFilter('all');
+    setSortKey('index');
+    setSortDir('asc');
+    const newIndex = onAddChannel();
+    setHighlightIndex(newIndex);
+  };
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -151,7 +176,7 @@ export function ChannelTable({ channels, onUpdateChannel, onDeleteChannels, onDu
           <option value="digital">Digital</option>
         </select>
         <button
-          onClick={onAddChannel}
+          onClick={handleAddChannel}
           className="px-4 py-1.5 text-sm bg-accent-green/20 text-accent-green hover:bg-accent-green/30 rounded-md transition-colors"
         >
           + Add Channel
@@ -198,8 +223,11 @@ export function ChannelTable({ channels, onUpdateChannel, onDeleteChannels, onDu
             {sorted.map(ch => (
               <tr
                 key={ch.index}
-                className={`border-t border-border-subtle hover:bg-surface-light/50 ${
-                  selected.has(ch.index) ? 'bg-primary/10' : ''
+                ref={ch.index === highlightIndex ? highlightRef : undefined}
+                className={`border-t border-border-subtle hover:bg-surface-light/50 transition-colors duration-1000 ${
+                  ch.index === highlightIndex
+                    ? 'bg-accent-green/20'
+                    : selected.has(ch.index) ? 'bg-primary/10' : ''
                 }`}
               >
                 <td className="px-3 py-2">

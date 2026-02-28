@@ -106,7 +106,7 @@ function App() {
             onUpdateChannel={updateChannel}
             onDeleteChannels={deleteChannels}
             onDuplicateChannel={duplicateChannel}
-            onAddChannel={() => addChannel(createDefaultChannel(codeplug.channels))}
+            onAddChannel={() => { const ch = createDefaultChannel(codeplug.channels); addChannel(ch); return ch.index; }}
           />
         );
       case 'zones':
