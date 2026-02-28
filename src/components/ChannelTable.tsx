@@ -9,6 +9,7 @@ interface Props {
   onUpdateChannel: (index: number, changes: Partial<Channel>) => void;
   onDeleteChannels: (indices: number[]) => void;
   onDuplicateChannel: (index: number) => void;
+  onAddChannel: () => void;
 }
 
 function EditableCell({ value, onCommit, type = 'text', options }: {
@@ -61,7 +62,7 @@ function EditableCell({ value, onCommit, type = 'text', options }: {
   );
 }
 
-export function ChannelTable({ channels, onUpdateChannel, onDeleteChannels, onDuplicateChannel }: Props) {
+export function ChannelTable({ channels, onUpdateChannel, onDeleteChannels, onDuplicateChannel, onAddChannel }: Props) {
   const [sortKey, setSortKey] = useState<SortKey>('index');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [filter, setFilter] = useState('');
@@ -149,6 +150,12 @@ export function ChannelTable({ channels, onUpdateChannel, onDeleteChannels, onDu
           <option value="analog">Analog</option>
           <option value="digital">Digital</option>
         </select>
+        <button
+          onClick={onAddChannel}
+          className="px-4 py-1.5 text-sm bg-accent-green/20 text-accent-green hover:bg-accent-green/30 rounded-md transition-colors"
+        >
+          + Add Channel
+        </button>
         <div className="flex-1" />
         <span className="text-xs text-text-dimmed">{sorted.length} of {channels.length} channels</span>
         {selected.size > 0 && (

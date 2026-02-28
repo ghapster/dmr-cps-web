@@ -526,7 +526,7 @@ function parseGroupLists(
   buffer: ArrayBuffer,
   offset: number,
   fileSize: number,
-): { groupLists: GroupList[]; _groupListsRaw: Uint8Array; bytesConsumed: number } {
+): { groupLists: GroupList[]; _groupListsRaw: Uint8Array; _groupListHeader: Uint8Array; _groupListTail: Uint8Array; bytesConsumed: number } {
   const sectionStart = offset;
 
   // Determine where this section ends by finding the APRS marker
@@ -543,6 +543,7 @@ function parseGroupLists(
   let pos = offset;
 
   // 3-byte header: byte[2] appears to be group list count
+  const _groupListHeader = new Uint8Array(buffer.slice(pos, pos + 3));
   const count = view.getUint8(pos + 2);
   pos += 3;
 
@@ -552,6 +553,7 @@ function parseGroupLists(
     const recordStart = pos;
 
     // 4+4 = 8 bytes of settings
+    const _settings = new Uint8Array(buffer.slice(pos, pos + 8));
     pos += 8;
 
     // Name (null-terminated, max 16)
@@ -559,28 +561,39 @@ function parseGroupLists(
     pos += nameFieldSize(nameLen);
 
     // 4-byte entry header: last byte is entry count
+    const _entryHeader = new Uint8Array(buffer.slice(pos, pos + 4));
     const entryCount = view.getUint8(pos + 3);
     pos += 4;
 
     // Entries: entryCount × 5 bytes each
     const contactIndices: number[] = [];
+    const _entryExtras: Uint8Array[] = [];
     for (let j = 0; j < entryCount; j++) {
-      // Each 5-byte entry: position(1) + contactIdx(1) + extra(3)
-      // The second byte appears to be the digital contact index
+      // Each 5-byte entry: byte0 + contactIdx(byte1) + byte2 + byte3 + byte4
       const contactIdx = view.getUint8(pos + 1);
       contactIndices.push(contactIdx);
+      // Preserve the 4 non-index bytes: [byte0, byte2, byte3, byte4]
+      _entryExtras.push(new Uint8Array([
+        view.getUint8(pos),
+        view.getUint8(pos + 2),
+        view.getUint8(pos + 3),
+        view.getUint8(pos + 4),
+      ]));
       pos += 5;
     }
 
     const _raw = new Uint8Array(buffer.slice(recordStart, pos));
-    groupLists.push({ index: i, name, contactIndices, _raw });
+    groupLists.push({ index: i, name, contactIndices, _raw, _nameLen: nameLen, _settings, _entryHeader, _entryExtras });
   }
+
+  // Tail: bytes after parsed records to APRS
+  const _groupListTail = new Uint8Array(buffer.slice(pos, sectionEnd));
 
   // The full section raw includes everything up to APRS (including post-entries config gap)
   const bytesConsumed = sectionEnd - sectionStart;
   const _groupListsRaw = new Uint8Array(buffer.slice(sectionStart, sectionEnd));
 
-  return { groupLists, _groupListsRaw, bytesConsumed };
+  return { groupLists, _groupListsRaw, _groupListHeader, _groupListTail, bytesConsumed };
 }
 
 function parseAprsSettings(
@@ -850,7 +863,7 @@ export function parseRdt(buffer: ArrayBuffer): Codeplug {
   pos += textMessageBytes;
 
   // --- Group Lists ---
-  const { groupLists, _groupListsRaw, bytesConsumed: groupListBytes } =
+  const { groupLists, _groupListsRaw, _groupListHeader, _groupListTail, bytesConsumed: groupListBytes } =
     parseGroupLists(view, buffer, pos, buffer.byteLength);
   pos += groupListBytes;
 
@@ -884,6 +897,8 @@ export function parseRdt(buffer: ArrayBuffer): Codeplug {
     _textMessageHeader,
     groupLists,
     _groupListsRaw,
+    _groupListHeader,
+    _groupListTail,
     aprsSettings,
     _aprsRaw,
     roamingChannels,

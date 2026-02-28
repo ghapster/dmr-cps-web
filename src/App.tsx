@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { ActiveSection } from './lib/types';
+import { createDefaultChannel } from './lib/rdt-writer';
 import { useCodeplug } from './hooks/useCodeplug';
 import { FileToolbar } from './components/FileToolbar';
 import { AppShell } from './components/AppShell';
@@ -10,7 +11,7 @@ import { ScanListEditor } from './components/ScanListEditor';
 import { SettingsViewer } from './components/SettingsViewer';
 import { DigitalContactEditor } from './components/DigitalContactEditor';
 import { TextMessageEditor } from './components/TextMessageEditor';
-import { GroupListViewer } from './components/GroupListViewer';
+import { GroupListEditor } from './components/GroupListEditor';
 import { AprsEditor } from './components/AprsEditor';
 import { RoamingViewer } from './components/RoamingViewer';
 
@@ -18,9 +19,10 @@ function App() {
   const {
     codeplug, fileName, dirty, issues,
     openFile, saveFile, exportCsv,
-    updateChannel, deleteChannels, duplicateChannel,
+    updateChannel, deleteChannels, addChannel, duplicateChannel,
     updateZone, updateRadioId, updateTextMessage,
     updateDigitalContact, updateAprsSettings,
+    updateScanList, updateGroupList,
     undo, redo, canUndo, canRedo,
   } = useCodeplug();
 
@@ -104,6 +106,7 @@ function App() {
             onUpdateChannel={updateChannel}
             onDeleteChannels={deleteChannels}
             onDuplicateChannel={duplicateChannel}
+            onAddChannel={() => addChannel(createDefaultChannel(codeplug.channels))}
           />
         );
       case 'zones':
@@ -135,6 +138,7 @@ function App() {
           <ScanListEditor
             scanLists={codeplug.scanLists}
             channels={codeplug.channels}
+            onUpdateScanList={updateScanList}
           />
         );
       case 'digitalContacts':
@@ -153,9 +157,10 @@ function App() {
         );
       case 'groupLists':
         return (
-          <GroupListViewer
+          <GroupListEditor
             groupLists={codeplug.groupLists}
             digitalContacts={codeplug.digitalContacts}
+            onUpdateGroupList={updateGroupList}
           />
         );
       case 'aprs':

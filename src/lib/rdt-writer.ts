@@ -3,6 +3,7 @@ import type {
   Channel,
   RadioId,
   Zone,
+  ScanList,
   AprsSettings,
   RepeaterMode,
   ChannelMode,
@@ -73,6 +74,103 @@ function patchString(buf: Uint8Array, offset: number, maxLen: number, text: stri
   }
 }
 
+const MAX_NAME_LEN = 16;
+
+/** Total bytes consumed by a name field (content + optional null terminator). */
+function nameFieldSize(nameLen: number): number {
+  return nameLen + (nameLen < MAX_NAME_LEN ? 1 : 0);
+}
+
+// ---------------------------------------------------------------------------
+// Create default channel
+// ---------------------------------------------------------------------------
+
+/**
+ * Creates a new default channel. Uses the first existing channel as a template
+ * for the _raw buffer structure. If no channels exist, builds from scratch.
+ */
+export function createDefaultChannel(channels: Channel[]): Channel {
+  const newIndex = channels.length > 0
+    ? Math.max(...channels.map(ch => ch.index)) + 1
+    : 1;
+
+  const newName = 'New Channel';
+  const newNameLen = newName.length;
+  const newNameFieldSize = nameFieldSize(newNameLen);
+  const recordSize = 0x30 + newNameFieldSize + 0x1A;
+
+  let buf: Uint8Array;
+
+  if (channels.length > 0) {
+    // Use first channel as template
+    const template = channels[0]._raw;
+    buf = new Uint8Array(recordSize);
+    // Copy header bytes (0x30) from template
+    buf.set(template.subarray(0, Math.min(0x30, template.byteLength)), 0);
+    // Copy trailing 0x1A bytes from template tail
+    const templateTail = template.subarray(template.byteLength - 0x1A);
+    buf.set(templateTail, recordSize - 0x1A);
+  } else {
+    buf = new Uint8Array(recordSize);
+  }
+
+  const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+
+  // Index
+  view.setUint16(0x00, newIndex, true);
+
+  // RX frequency: 146.52 MHz simplex
+  view.setUint32(0x02, Math.round(146.52 * 100000), true);
+
+  // Simplex
+  view.setUint8(0x06, 0);
+
+  // TX offset: 0
+  view.setUint32(0x07, 0, true);
+
+  // Mode: analog
+  view.setUint8(0x0B, 0);
+
+  // Power: high
+  view.setUint8(0x0C, 2);
+
+  // Bandwidth: wide
+  view.setUint8(0x0D, 1);
+
+  // RX only: false
+  view.setUint8(0x0F, 0);
+
+  // Admit criteria: 0
+  view.setUint8(0x20, 0);
+
+  // Color code: 1
+  view.setUint8(0x28, 1);
+
+  // Time slot: TS1 (byte value 0)
+  view.setUint8(0x2A, 0);
+
+  // Write name
+  writeAscii(view, 0x30, newName, newNameFieldSize);
+
+  return {
+    index: newIndex,
+    name: newName,
+    rxFrequency: 146.52,
+    txFrequency: 146.52,
+    repeaterMode: 'simplex',
+    txOffset: 0,
+    mode: 'analog',
+    power: 'high',
+    bandwidth: 'wide',
+    rxOnly: false,
+    admitCriteria: 0,
+    colorCode: 1,
+    timeSlot: 1,
+    _raw: buf,
+    _nameLen: newNameLen,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Section-size calculator
 // ---------------------------------------------------------------------------
@@ -98,16 +196,19 @@ function computeTotalSize(codeplug: Codeplug): number {
     size += rid._raw.byteLength;
   }
 
-  // Zone count (1 byte) + zone records
+  // Zone count (1 byte) + zone records (computed dynamically)
   size += 1;
   for (const z of codeplug.zones) {
-    size += z._raw.byteLength;
+    const zNameLen = z.name.length;
+    const zNameBytes = nameFieldSize(zNameLen);
+    size += 1 + 1 + z.channelIndices.length * 2 + 4 + zNameBytes;
   }
 
-  // Scan list count (1 byte) + scan list records
+  // Scan list count (1 byte) + scan list records (computed dynamically)
   size += 1;
   for (const sl of codeplug.scanLists) {
-    size += sl._raw.byteLength;
+    const slNameBytes = nameFieldSize(sl._nameLen);
+    size += 1 + slNameBytes + 7 + 4 + 1 + sl.channelIndices.length * 3;
   }
 
   // Analog contact count (1 byte) + analog contact records
@@ -126,8 +227,13 @@ function computeTotalSize(codeplug: Codeplug): number {
     size += 1 + msg.text.length + 1; // index + text + null terminator
   }
 
-  // Group lists (entire section blob)
-  size += codeplug._groupListsRaw.byteLength;
+  // Group lists (rebuilt dynamically)
+  size += 3; // header
+  for (const gl of codeplug.groupLists) {
+    const glNameBytes = nameFieldSize(gl._nameLen);
+    size += 8 + glNameBytes + 4 + gl.contactIndices.length * 5;
+  }
+  size += codeplug._groupListTail.byteLength;
 
   // APRS settings (entire section blob)
   size += codeplug._aprsRaw.byteLength;
@@ -222,9 +328,12 @@ function serializeRadioId(radioId: RadioId): Uint8Array {
 // ---------------------------------------------------------------------------
 
 function serializeZone(zone: Zone): Uint8Array {
-  const buf = new Uint8Array(zone._raw.byteLength);
-  buf.set(zone._raw);
+  // Compute new record size dynamically (channels may have been added/removed)
+  const nameLen = zone.name.length;
+  const nameTotalBytes = nameFieldSize(nameLen);
+  const recordSize = 1 + 1 + zone.channelIndices.length * 2 + 4 + nameTotalBytes;
 
+  const buf = new Uint8Array(recordSize);
   const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
 
   // Index — 1 byte at 0x00
@@ -244,9 +353,7 @@ function serializeZone(zone: Zone): Uint8Array {
 
   // Zone name — starts after channel indices + 4 bytes padding
   const nameOffset = padOffset + 4;
-  // Determine available space for name: rest of the record
-  const nameMaxLen = buf.byteLength - nameOffset;
-  writeAscii(view, nameOffset, zone.name, nameMaxLen);
+  writeAscii(view, nameOffset, zone.name, nameTotalBytes);
 
   return buf;
 }
@@ -286,6 +393,116 @@ function serializeAprsSettings(aprs: AprsSettings): Uint8Array {
   if (offsets.comment.maxLen > 0) {
     patchString(buf, offsets.comment.pos, offsets.comment.maxLen, aprs.comment);
   }
+
+  return buf;
+}
+
+// ---------------------------------------------------------------------------
+// Scan list serializer
+// ---------------------------------------------------------------------------
+
+function serializeScanList(sl: ScanList): Uint8Array {
+  // Compute size dynamically: index(1) + name(var) + settings(7) + timing(4) + count(1) + entries(count×3)
+  const nameTotalBytes = nameFieldSize(sl._nameLen);
+  const recordSize = 1 + nameTotalBytes + 7 + 4 + 1 + sl.channelIndices.length * 3;
+
+  const buf = new Uint8Array(recordSize);
+  const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  let pos = 0;
+
+  // Index
+  view.setUint8(pos, sl.index);
+  pos += 1;
+
+  // Name
+  writeAscii(view, pos, sl.name, nameTotalBytes);
+  pos += nameTotalBytes;
+
+  // Settings (7 bytes)
+  buf.set(sl._settings, pos);
+  pos += 7;
+
+  // Timing (4 bytes)
+  buf.set(sl._timing, pos);
+  pos += 4;
+
+  // Channel count
+  view.setUint8(pos, sl.channelIndices.length);
+  pos += 1;
+
+  // Entries: flag(1) + channelIdx(uint16_le) per entry
+  for (let i = 0; i < sl.channelIndices.length; i++) {
+    view.setUint8(pos, sl.entryFlags[i] ?? 0);
+    view.setUint16(pos + 1, sl.channelIndices[i], true);
+    pos += 3;
+  }
+
+  return buf;
+}
+
+// ---------------------------------------------------------------------------
+// Group list section rebuilder
+// ---------------------------------------------------------------------------
+
+function rebuildGroupListsRaw(codeplug: Codeplug): Uint8Array {
+  // Calculate total size
+  let totalSize = 3; // header
+  for (const gl of codeplug.groupLists) {
+    const nameTotalBytes = nameFieldSize(gl._nameLen);
+    totalSize += 8 + nameTotalBytes + 4 + gl.contactIndices.length * 5;
+  }
+  totalSize += codeplug._groupListTail.byteLength;
+
+  const buf = new Uint8Array(totalSize);
+  const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  let pos = 0;
+
+  // Header (3 bytes) — patch byte[2] with count
+  buf.set(codeplug._groupListHeader, 0);
+  view.setUint8(2, codeplug.groupLists.length);
+  pos += 3;
+
+  // Each group list record
+  for (const gl of codeplug.groupLists) {
+    // Settings (8 bytes)
+    buf.set(gl._settings, pos);
+    pos += 8;
+
+    // Name
+    const nameTotalBytes = nameFieldSize(gl._nameLen);
+    writeAscii(view, pos, gl.name, nameTotalBytes);
+    pos += nameTotalBytes;
+
+    // Entry header (4 bytes) — patch byte[3] with entry count
+    buf.set(gl._entryHeader, pos);
+    view.setUint8(pos + 3, gl.contactIndices.length);
+    pos += 4;
+
+    // Entries (5 bytes each)
+    for (let i = 0; i < gl.contactIndices.length; i++) {
+      if (i < gl._entryExtras.length) {
+        // Existing entry: use preserved extras
+        const extras = gl._entryExtras[i];
+        view.setUint8(pos, extras[0]);          // byte 0
+        view.setUint8(pos + 1, gl.contactIndices[i]); // byte 1 = contact index
+        view.setUint8(pos + 2, extras[1]);      // byte 2
+        view.setUint8(pos + 3, extras[2]);      // byte 3
+        view.setUint8(pos + 4, extras[3]);      // byte 4
+      } else {
+        // New entry: [position, contactIdx, 0, 0, 0]
+        view.setUint8(pos, i);
+        view.setUint8(pos + 1, gl.contactIndices[i]);
+        view.setUint8(pos + 2, 0);
+        view.setUint8(pos + 3, 0);
+        view.setUint8(pos + 4, 0);
+      }
+      pos += 5;
+    }
+  }
+
+  // Tail bytes
+  buf.set(codeplug._groupListTail, pos);
+  pos += codeplug._groupListTail.byteLength;
 
   return buf;
 }
@@ -369,14 +586,15 @@ export function writeRdt(codeplug: Codeplug): ArrayBuffer {
   }
 
   // -----------------------------------------------------------------------
-  // 6. Scan Lists (copy _raw verbatim)
+  // 6. Scan Lists (serialized dynamically)
   // -----------------------------------------------------------------------
   view.setUint8(pos, codeplug.scanLists.length);
   pos += 1;
 
   for (const sl of codeplug.scanLists) {
-    bytes.set(sl._raw, pos);
-    pos += sl._raw.byteLength;
+    const record = serializeScanList(sl);
+    bytes.set(record, pos);
+    pos += record.byteLength;
   }
 
   // -----------------------------------------------------------------------
@@ -426,10 +644,13 @@ export function writeRdt(codeplug: Codeplug): ArrayBuffer {
   }
 
   // -----------------------------------------------------------------------
-  // 10. Group Lists (copy entire section blob verbatim)
+  // 10. Group Lists (rebuilt dynamically)
   // -----------------------------------------------------------------------
-  bytes.set(codeplug._groupListsRaw, pos);
-  pos += codeplug._groupListsRaw.byteLength;
+  {
+    const glData = rebuildGroupListsRaw(codeplug);
+    bytes.set(glData, pos);
+    pos += glData.byteLength;
+  }
 
   // -----------------------------------------------------------------------
   // 11. APRS Settings (rebuilt from patched editable data)

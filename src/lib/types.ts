@@ -83,6 +83,10 @@ export interface GroupList {
   name: string;
   contactIndices: number[];
   _raw: Uint8Array;
+  _nameLen: number;
+  _settings: Uint8Array;       // 8 bytes: settings1(4) + settings2(4)
+  _entryHeader: Uint8Array;    // 4 bytes before entries (last byte = count)
+  _entryExtras: Uint8Array[];  // per entry: the 4 non-index bytes of each 5-byte entry [byte0, byte2, byte3, byte4]
 }
 
 export interface AprsFieldOffset {
@@ -136,6 +140,8 @@ export interface Codeplug {
   _textMessageHeader: Uint8Array;    // 8 bytes before count
   groupLists: GroupList[];
   _groupListsRaw: Uint8Array;        // entire section including post-entries config
+  _groupListHeader: Uint8Array;      // first 3 bytes of group list section
+  _groupListTail: Uint8Array;        // bytes after parsed records to APRS
   aprsSettings: AprsSettings;
   _aprsRaw: Uint8Array;              // entire APRS section
   roamingChannels: RoamingChannel[];
