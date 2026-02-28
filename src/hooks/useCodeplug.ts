@@ -95,15 +95,17 @@ export function useCodeplug() {
     }));
   }, [updateCodeplug]);
 
-  const duplicateChannel = useCallback((index: number) => {
+  const duplicateChannel = useCallback((index: number): number => {
+    let newIndex = -1;
     updateCodeplug(cp => {
       const srcIdx = cp.channels.findIndex(ch => ch.index === index);
       if (srcIdx === -1) return cp;
       const src = cp.channels[srcIdx];
       const maxIndex = Math.max(...cp.channels.map(ch => ch.index), 0);
+      newIndex = maxIndex + 1;
       const dup: Channel = {
         ...src,
-        index: maxIndex + 1,
+        index: newIndex,
         name: `${src.name} Copy`.slice(0, 16),
         _raw: new Uint8Array(src._raw),
       };
@@ -111,6 +113,7 @@ export function useCodeplug() {
       channels.splice(srcIdx + 1, 0, dup);
       return { ...cp, channels };
     });
+    return newIndex;
   }, [updateCodeplug]);
 
   const addZone = useCallback((zone: Zone) => {

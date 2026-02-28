@@ -11,7 +11,7 @@ interface Props {
   channels: Channel[];
   onUpdateChannel: (index: number, changes: Partial<Channel>) => void;
   onDeleteChannels: (indices: number[]) => void;
-  onDuplicateChannel: (index: number) => void;
+  onDuplicateChannel: (index: number) => number;
   onAddChannel: () => number; // returns the new channel's index
   onImportChannels?: (partials: Partial<Channel>[]) => void;
 }
@@ -349,7 +349,10 @@ export function ChannelTable({ channels, onUpdateChannel, onDeleteChannels, onDu
                 </td>
                 <td className="px-3 py-2">
                   <button
-                    onClick={() => onDuplicateChannel(ch.index)}
+                    onClick={() => {
+                      const newIdx = onDuplicateChannel(ch.index);
+                      if (newIdx >= 0) setHighlightIndex(newIdx);
+                    }}
                     className="text-text-dimmed hover:text-text rounded-md p-1 hover:bg-surface-lighter transition-colors"
                     title="Duplicate channel"
                   >

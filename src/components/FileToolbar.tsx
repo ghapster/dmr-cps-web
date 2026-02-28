@@ -45,7 +45,7 @@ export function FileToolbar({
           <circle cx="12" cy="12" r="1" fill="currentColor" />
         </svg>
         <span className="text-sm font-semibold text-primary-light tracking-wide">DMR CPS</span>
-        <span className="text-xs font-medium text-text-dimmed">V1.9</span>
+        <span className="text-xs font-medium text-text-dimmed">V1.10</span>
       </div>
 
       <input
