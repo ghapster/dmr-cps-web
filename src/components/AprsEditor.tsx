@@ -47,24 +47,24 @@ export function AprsEditor({ aprsSettings, onUpdateAprs }: Props) {
 
   return (
     <div className="space-y-4">
-      <h3 className="text-xs text-text-muted uppercase tracking-wider">APRS Settings</h3>
-      <p className="text-[10px] text-text-muted">
+      <h3 className="text-sm font-medium text-text-muted">APRS Settings</h3>
+      <p className="text-xs text-text-dimmed">
         Edit APRS configuration. String lengths are limited to the original field allocation.
       </p>
-      <div className="max-w-lg space-y-3">
+      <div className="max-w-xl rounded-xl border border-border p-6 space-y-4" style={{ boxShadow: 'var(--shadow-sm)' }}>
         {fields.map(field => (
           <div key={field.label} className="flex items-start gap-3">
-            <span className="text-xs text-text-muted w-28 shrink-0 pt-2">{field.label}:</span>
+            <span className="text-sm text-text-muted w-28 shrink-0 pt-2">{field.label}:</span>
             <div className="flex-1">
               <input
                 type="text"
                 value={field.value}
                 onChange={e => field.onChange(e.target.value)}
                 maxLength={field.maxLen}
-                className="w-full bg-transparent border border-border/50 rounded px-3 py-1.5 text-xs font-medium
+                className="w-full bg-surface-light border border-border rounded-md px-4 py-2 text-sm
                            focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/30"
               />
-              <span className="text-[9px] text-text-muted mt-0.5 block">
+              <span className="text-xs text-text-dimmed mt-1 block">
                 {field.value.length}/{field.maxLen}
               </span>
             </div>
@@ -73,7 +73,7 @@ export function AprsEditor({ aprsSettings, onUpdateAprs }: Props) {
 
         {/* SSID — numeric input */}
         <div className="flex items-start gap-3">
-          <span className="text-xs text-text-muted w-28 shrink-0 pt-2">SSID:</span>
+          <span className="text-sm text-text-muted w-28 shrink-0 pt-2">SSID:</span>
           <div className="flex-1">
             <input
               type="number"
@@ -86,17 +86,17 @@ export function AprsEditor({ aprsSettings, onUpdateAprs }: Props) {
               }}
               min={0}
               max={15}
-              className="w-20 bg-transparent border border-border/50 rounded px-3 py-1.5 text-xs font-medium tabular-nums
+              className="w-20 bg-surface-light border border-border rounded-md px-4 py-2 text-sm tabular-nums font-mono
                          focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/30
                          [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
             />
-            <span className="text-[9px] text-text-muted mt-0.5 block">0–15</span>
+            <span className="text-xs text-text-dimmed mt-1 block">0–15</span>
           </div>
         </div>
 
         {/* Path 1 */}
         <div className="flex items-start gap-3">
-          <span className="text-xs text-text-muted w-28 shrink-0 pt-2">Path 1:</span>
+          <span className="text-sm text-text-muted w-28 shrink-0 pt-2">Path 1:</span>
           <div className="flex-1">
             <input
               type="text"
@@ -107,7 +107,7 @@ export function AprsEditor({ aprsSettings, onUpdateAprs }: Props) {
                 onUpdateAprs({ paths: newPaths });
               }}
               maxLength={pathMaxLen}
-              className="w-full bg-transparent border border-border/50 rounded px-3 py-1.5 text-xs font-medium
+              className="w-full bg-surface-light border border-border rounded-md px-4 py-2 text-sm
                          focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/30"
             />
           </div>
@@ -115,7 +115,7 @@ export function AprsEditor({ aprsSettings, onUpdateAprs }: Props) {
 
         {/* Path 2 */}
         <div className="flex items-start gap-3">
-          <span className="text-xs text-text-muted w-28 shrink-0 pt-2">Path 2:</span>
+          <span className="text-sm text-text-muted w-28 shrink-0 pt-2">Path 2:</span>
           <div className="flex-1">
             <input
               type="text"
@@ -126,17 +126,17 @@ export function AprsEditor({ aprsSettings, onUpdateAprs }: Props) {
                 onUpdateAprs({ paths: newPaths });
               }}
               maxLength={pathMaxLen > path1.length ? pathMaxLen - path1.length : 0}
-              className="w-full bg-transparent border border-border/50 rounded px-3 py-1.5 text-xs font-medium
+              className="w-full bg-surface-light border border-border rounded-md px-4 py-2 text-sm
                          focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/30"
             />
-            <span className="text-[9px] text-text-muted mt-0.5 block">
+            <span className="text-xs text-text-dimmed mt-1 block">
               Combined path length: {path1.length + path2.length}/{pathMaxLen}
             </span>
           </div>
         </div>
       </div>
       <div className="mt-4">
-        <span className="text-[10px] text-text-muted">
+        <span className="text-xs text-text-dimmed">
           Raw section size: {aprsSettings._raw.byteLength} bytes
         </span>
       </div>

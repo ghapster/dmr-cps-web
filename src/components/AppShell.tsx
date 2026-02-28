@@ -35,21 +35,26 @@ export function AppShell({ activeSection, onSectionChange, codeplug, issues, chi
   return (
     <div className="flex flex-1 overflow-hidden">
       {/* Sidebar */}
-      <nav className="w-48 bg-surface border-r border-border flex flex-col shrink-0">
+      <nav className="w-52 bg-surface border-r border-border-subtle flex flex-col shrink-0">
         <div className="flex-1 py-2">
           {items.map(item => (
             <button
               key={item.key}
               onClick={() => onSectionChange(item.key)}
-              className={`w-full text-left px-4 py-2 text-sm transition-colors flex items-center justify-between ${
+              className={`w-full text-left px-3 py-2 mx-0 text-sm transition-colors flex items-center justify-between ${
                 activeSection === item.key
-                  ? 'bg-primary/20 text-primary-light border-r-2 border-primary-light'
+                  ? 'bg-surface-lighter text-text'
                   : 'text-text-muted hover:bg-surface-light hover:text-text'
               }`}
             >
-              <span>{item.label}</span>
+              <div className="flex items-center gap-2">
+                {activeSection === item.key && (
+                  <div className="w-0.5 h-4 bg-primary rounded-full shrink-0" />
+                )}
+                <span>{item.label}</span>
+              </div>
               {item.count !== undefined && (
-                <span className="text-[10px] text-text-muted bg-surface-lighter px-1.5 py-0.5 rounded">
+                <span className="text-xs text-text-dimmed">
                   {item.count}
                 </span>
               )}
@@ -59,7 +64,7 @@ export function AppShell({ activeSection, onSectionChange, codeplug, issues, chi
 
         {/* Validation summary */}
         {(errorCount > 0 || warnCount > 0) && (
-          <div className="px-4 py-2 border-t border-border text-[10px] space-y-1">
+          <div className="px-4 py-3 border-t border-border-subtle text-xs space-y-1">
             {errorCount > 0 && (
               <div className="text-accent-red">{errorCount} error{errorCount > 1 ? 's' : ''}</div>
             )}
@@ -71,7 +76,7 @@ export function AppShell({ activeSection, onSectionChange, codeplug, issues, chi
       </nav>
 
       {/* Main content */}
-      <main className="flex-1 overflow-auto p-4">
+      <main className="flex-1 overflow-auto p-5">
         {children}
       </main>
     </div>

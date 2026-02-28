@@ -33,33 +33,35 @@ export function SettingsViewer({ header, settingsBlock }: Props) {
     <div className="space-y-6">
       {/* Header info */}
       <div>
-        <h3 className="text-xs text-text-muted uppercase tracking-wider mb-3">File Header</h3>
-        <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-xs max-w-lg">
-          <span className="text-text-muted">Version:</span>
-          <span className="font-medium">{header.version}</span>
-          <span className="text-text-muted">Model:</span>
-          <span className="font-medium">{header.modelName}</span>
-          <span className="text-text-muted">CPS Version:</span>
-          <span className="font-medium">{header.cpsVersion}</span>
-          <span className="text-text-muted">Payload Size:</span>
-          <span className="font-medium tabular-nums">{header.payloadSize.toLocaleString()} bytes</span>
+        <h3 className="text-sm font-medium text-text-muted mb-4">File Header</h3>
+        <div className="rounded-xl border border-border p-5 max-w-lg" style={{ boxShadow: 'var(--shadow-sm)' }}>
+          <div className="grid grid-cols-2 gap-x-8 gap-y-3 text-sm">
+            <span className="text-text-muted">Version:</span>
+            <span className="font-medium">{header.version}</span>
+            <span className="text-text-muted">Model:</span>
+            <span className="font-medium">{header.modelName}</span>
+            <span className="text-text-muted">CPS Version:</span>
+            <span className="font-medium">{header.cpsVersion}</span>
+            <span className="text-text-muted">Payload Size:</span>
+            <span className="font-medium tabular-nums font-mono">{header.payloadSize.toLocaleString()} bytes</span>
+          </div>
         </div>
       </div>
 
       {/* Settings hex dump */}
       <div>
-        <h3 className="text-xs text-text-muted uppercase tracking-wider mb-2">
+        <h3 className="text-sm font-medium text-text-muted mb-2">
           Settings Block ({settingsBlock.length} bytes)
         </h3>
-        <p className="text-[10px] text-text-muted mb-3">
-          Settings are preserved verbatim and not editable in Phase 1.
+        <p className="text-xs text-text-dimmed mb-3">
+          Settings are preserved verbatim and not editable. Read-only view.
         </p>
-        <div className="bg-surface border border-border rounded p-3 overflow-auto max-h-96 font-mono text-[11px] leading-5 text-text-muted">
+        <div className="bg-surface-light rounded-lg p-4 overflow-auto max-h-96 font-mono text-xs leading-5 text-text-muted">
           {dump.map((line, i) => (
             <div key={i} className="whitespace-pre">{line}</div>
           ))}
           {settingsBlock.length > 32 * 16 && (
-            <div className="text-text-muted mt-1">... ({settingsBlock.length - 32 * 16} more bytes)</div>
+            <div className="text-text-dimmed mt-1">... ({settingsBlock.length - 32 * 16} more bytes)</div>
           )}
         </div>
       </div>

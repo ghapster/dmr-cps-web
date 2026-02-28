@@ -67,16 +67,27 @@ function App() {
     if (!codeplug) {
       return (
         <div className="flex-1 flex items-center justify-center">
-          <div className="text-center space-y-4">
-            <div className="text-6xl opacity-20">&#x1F4E1;</div>
-            <h2 className="text-lg text-text-muted">DMR CPS — Web Edition</h2>
-            <p className="text-sm text-text-muted max-w-md">
-              Open an Anytone D578UV .RDT codeplug file to get started.
-              <br />
-              Drag and drop or use the Open button above.
-            </p>
+          <div className="text-center space-y-6">
+            <div className="flex justify-center">
+              <svg viewBox="0 0 24 24" className="w-16 h-16 text-text-dimmed opacity-40" fill="none" stroke="currentColor" strokeWidth={1.5}>
+                <path d="M5.636 18.364a9 9 0 0 1 0-12.728M18.364 5.636a9 9 0 0 1 0 12.728" />
+                <path d="M8.464 15.536a5 5 0 0 1 0-7.072M15.536 8.464a5 5 0 0 1 0 7.072" />
+                <circle cx="12" cy="12" r="1.5" fill="currentColor" />
+              </svg>
+            </div>
+            <div>
+              <h2 className="text-xl font-medium text-text mb-2">DMR CPS — Web Edition</h2>
+              <p className="text-base text-text-muted max-w-md">
+                Open an Anytone D578UV .RDT codeplug file to get started.
+              </p>
+            </div>
+            <div className="border-2 border-dashed border-border rounded-xl px-8 py-6">
+              <p className="text-sm text-text-dimmed">
+                Drag and drop a file here, or use the Open button above
+              </p>
+            </div>
             {error && (
-              <div className="mt-4 px-4 py-2 bg-accent-red/10 border border-accent-red/30 rounded text-accent-red text-xs">
+              <div className="mt-4 px-5 py-3 bg-accent-red/10 border border-accent-red/30 rounded-lg text-accent-red text-sm">
                 {error}
               </div>
             )}
@@ -186,7 +197,7 @@ function App() {
         canRedo={canRedo}
       />
       {error && codeplug && (
-        <div className="px-4 py-1.5 bg-accent-red/10 border-b border-accent-red/30 text-accent-red text-xs">
+        <div className="px-5 py-2 bg-accent-red/10 border-b border-accent-red/30 text-accent-red text-sm">
           {error}
         </div>
       )}

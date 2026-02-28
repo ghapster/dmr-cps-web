@@ -23,7 +23,7 @@ function EditableCell({ value, onCommit, type = 'text', options }: {
   if (!editing) {
     return (
       <span
-        className="cursor-pointer hover:bg-surface-lighter px-1 py-0.5 rounded block w-full"
+        className="cursor-pointer hover:bg-surface-lighter px-1.5 py-0.5 rounded-md block w-full"
         onClick={() => { setDraft(String(value)); setEditing(true); }}
       >
         {value}
@@ -38,7 +38,7 @@ function EditableCell({ value, onCommit, type = 'text', options }: {
         value={draft}
         onChange={e => { setDraft(e.target.value); onCommit(e.target.value); setEditing(false); }}
         onBlur={() => setEditing(false)}
-        className="bg-surface-lighter text-text text-xs px-1 py-0.5 rounded border border-border w-full outline-none"
+        className="bg-surface-lighter text-text text-sm px-1.5 py-0.5 rounded-md border border-border w-full outline-none"
       >
         {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
@@ -56,7 +56,7 @@ function EditableCell({ value, onCommit, type = 'text', options }: {
         if (e.key === 'Enter') { onCommit(draft); setEditing(false); }
         if (e.key === 'Escape') setEditing(false);
       }}
-      className="bg-surface-lighter text-text text-xs px-1 py-0.5 rounded border border-border w-full outline-none"
+      className="bg-surface-lighter text-text text-sm px-1.5 py-0.5 rounded-md border border-border w-full outline-none"
     />
   );
 }
@@ -111,7 +111,7 @@ export function ChannelTable({ channels, onUpdateChannel, onDeleteChannels, onDu
 
   const SortHeader = ({ label, sKey }: { label: string; sKey: SortKey }) => (
     <th
-      className="px-2 py-1.5 text-left text-[10px] uppercase tracking-wider text-text-muted cursor-pointer hover:text-text select-none whitespace-nowrap"
+      className="px-3 py-3 text-left text-xs font-medium text-text-muted cursor-pointer hover:text-text select-none whitespace-nowrap"
       onClick={() => toggleSort(sKey)}
     >
       {label} {sortKey === sKey ? (sortDir === 'asc' ? '\u25B2' : '\u25BC') : ''}
@@ -127,28 +127,34 @@ export function ChannelTable({ channels, onUpdateChannel, onDeleteChannels, onDu
     <div className="space-y-3">
       {/* Toolbar */}
       <div className="flex items-center gap-3">
-        <input
-          type="text"
-          placeholder="Search channels..."
-          value={filter}
-          onChange={e => setFilter(e.target.value)}
-          className="bg-surface-light border border-border rounded px-3 py-1.5 text-xs text-text placeholder:text-text-muted outline-none focus:border-primary-light w-64"
-        />
+        <div className="relative">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-dimmed" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <circle cx="11" cy="11" r="8" />
+            <path d="m21 21-4.35-4.35" />
+          </svg>
+          <input
+            type="text"
+            placeholder="Search channels..."
+            value={filter}
+            onChange={e => setFilter(e.target.value)}
+            className="bg-surface-light border border-border rounded-lg pl-9 pr-4 py-2 text-sm text-text placeholder:text-text-dimmed outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/30 w-64"
+          />
+        </div>
         <select
           value={modeFilter}
           onChange={e => setModeFilter(e.target.value as 'all' | ChannelMode)}
-          className="bg-surface-light border border-border rounded px-2 py-1.5 text-xs text-text outline-none"
+          className="bg-surface-light border border-border rounded-lg px-3 py-2 text-sm text-text outline-none"
         >
           <option value="all">All Modes</option>
           <option value="analog">Analog</option>
           <option value="digital">Digital</option>
         </select>
         <div className="flex-1" />
-        <span className="text-[10px] text-text-muted">{sorted.length} of {channels.length} channels</span>
+        <span className="text-xs text-text-dimmed">{sorted.length} of {channels.length} channels</span>
         {selected.size > 0 && (
           <button
             onClick={() => { onDeleteChannels(Array.from(selected)); setSelected(new Set()); }}
-            className="px-3 py-1 text-xs bg-accent-red/20 text-accent-red hover:bg-accent-red/30 rounded transition-colors"
+            className="px-4 py-1.5 text-sm bg-accent-red/20 text-accent-red hover:bg-accent-red/30 rounded-md transition-colors"
           >
             Delete {selected.size}
           </button>
@@ -156,16 +162,16 @@ export function ChannelTable({ channels, onUpdateChannel, onDeleteChannels, onDu
       </div>
 
       {/* Table */}
-      <div className="overflow-auto rounded border border-border">
-        <table className="w-full text-xs">
+      <div className="overflow-auto rounded-xl border border-border" style={{ boxShadow: 'var(--shadow-sm)' }}>
+        <table className="w-full text-sm">
           <thead className="bg-surface-light sticky top-0 z-10">
             <tr>
-              <th className="px-2 py-1.5 w-8">
+              <th className="px-3 py-3 w-8">
                 <input
                   type="checkbox"
                   checked={allSelected}
                   onChange={toggleSelectAll}
-                  className="accent-primary-light"
+                  className="accent-primary-light w-4 h-4"
                 />
               </th>
               <SortHeader label="#" sKey="index" />
@@ -174,22 +180,22 @@ export function ChannelTable({ channels, onUpdateChannel, onDeleteChannels, onDu
               <SortHeader label="TX Freq" sKey="txFrequency" />
               <SortHeader label="Mode" sKey="mode" />
               <SortHeader label="Power" sKey="power" />
-              <th className="px-2 py-1.5 text-left text-[10px] uppercase tracking-wider text-text-muted">BW</th>
+              <th className="px-3 py-3 text-left text-xs font-medium text-text-muted">BW</th>
               <SortHeader label="CC" sKey="colorCode" />
               <SortHeader label="TS" sKey="timeSlot" />
-              <th className="px-2 py-1.5 text-left text-[10px] uppercase tracking-wider text-text-muted">RX Only</th>
-              <th className="px-2 py-1.5 w-8"></th>
+              <th className="px-3 py-3 text-left text-xs font-medium text-text-muted">RX Only</th>
+              <th className="px-3 py-3 w-8"></th>
             </tr>
           </thead>
           <tbody>
             {sorted.map(ch => (
               <tr
                 key={ch.index}
-                className={`border-t border-border/50 hover:bg-surface-light/50 ${
+                className={`border-t border-border-subtle hover:bg-surface-light/50 ${
                   selected.has(ch.index) ? 'bg-primary/10' : ''
                 }`}
               >
-                <td className="px-2 py-1">
+                <td className="px-3 py-2">
                   <input
                     type="checkbox"
                     checked={selected.has(ch.index)}
@@ -198,31 +204,31 @@ export function ChannelTable({ channels, onUpdateChannel, onDeleteChannels, onDu
                       next.has(ch.index) ? next.delete(ch.index) : next.add(ch.index);
                       setSelected(next);
                     }}
-                    className="accent-primary-light"
+                    className="accent-primary-light w-4 h-4"
                   />
                 </td>
-                <td className="px-2 py-1 text-text-muted">{ch.index}</td>
-                <td className="px-2 py-1 font-medium">
+                <td className="px-3 py-2 text-text-muted font-mono text-xs">{ch.index}</td>
+                <td className="px-3 py-2 font-medium">
                   <EditableCell
                     value={ch.name}
                     onCommit={v => onUpdateChannel(ch.index, { name: v.slice(0, 16) })}
                   />
                 </td>
-                <td className="px-2 py-1 tabular-nums">
+                <td className="px-3 py-2 tabular-nums font-mono text-xs">
                   <EditableCell
                     value={ch.rxFrequency.toFixed(5)}
                     type="number"
                     onCommit={v => commitFreq(ch.index, 'rxFrequency', v)}
                   />
                 </td>
-                <td className="px-2 py-1 tabular-nums">
+                <td className="px-3 py-2 tabular-nums font-mono text-xs">
                   <EditableCell
                     value={ch.txFrequency.toFixed(5)}
                     type="number"
                     onCommit={v => commitFreq(ch.index, 'txFrequency', v)}
                   />
                 </td>
-                <td className="px-2 py-1">
+                <td className="px-3 py-2">
                   <EditableCell
                     value={ch.mode}
                     type="select"
@@ -233,7 +239,7 @@ export function ChannelTable({ channels, onUpdateChannel, onDeleteChannels, onDu
                     onCommit={v => onUpdateChannel(ch.index, { mode: v as ChannelMode })}
                   />
                 </td>
-                <td className="px-2 py-1">
+                <td className="px-3 py-2">
                   <EditableCell
                     value={ch.power}
                     type="select"
@@ -246,10 +252,10 @@ export function ChannelTable({ channels, onUpdateChannel, onDeleteChannels, onDu
                     onCommit={v => onUpdateChannel(ch.index, { power: v as Channel['power'] })}
                   />
                 </td>
-                <td className="px-2 py-1 text-text-muted">
+                <td className="px-3 py-2 text-text-muted text-xs">
                   {ch.bandwidth === 'narrow' ? '12.5' : '25'}
                 </td>
-                <td className="px-2 py-1 tabular-nums">
+                <td className="px-3 py-2 tabular-nums font-mono text-xs">
                   {ch.mode === 'digital' ? (
                     <EditableCell
                       value={ch.colorCode}
@@ -260,10 +266,10 @@ export function ChannelTable({ channels, onUpdateChannel, onDeleteChannels, onDu
                       }}
                     />
                   ) : (
-                    <span className="text-text-muted">-</span>
+                    <span className="text-text-dimmed">-</span>
                   )}
                 </td>
-                <td className="px-2 py-1 tabular-nums">
+                <td className="px-3 py-2 tabular-nums font-mono text-xs">
                   {ch.mode === 'digital' ? (
                     <EditableCell
                       value={ch.timeSlot}
@@ -275,16 +281,16 @@ export function ChannelTable({ channels, onUpdateChannel, onDeleteChannels, onDu
                       onCommit={v => onUpdateChannel(ch.index, { timeSlot: parseInt(v) as 1 | 2 })}
                     />
                   ) : (
-                    <span className="text-text-muted">-</span>
+                    <span className="text-text-dimmed">-</span>
                   )}
                 </td>
-                <td className="px-2 py-1 text-center">
-                  {ch.rxOnly ? <span className="text-accent-red text-[10px]">RO</span> : ''}
+                <td className="px-3 py-2 text-center">
+                  {ch.rxOnly ? <span className="text-accent-red text-xs">RO</span> : ''}
                 </td>
-                <td className="px-2 py-1">
+                <td className="px-3 py-2">
                   <button
                     onClick={() => onDuplicateChannel(ch.index)}
-                    className="text-text-muted hover:text-text text-[10px]"
+                    className="text-text-dimmed hover:text-text text-xs rounded-md px-1.5 py-0.5 hover:bg-surface-lighter transition-colors"
                     title="Duplicate"
                   >
                     dup

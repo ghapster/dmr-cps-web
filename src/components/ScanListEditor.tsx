@@ -18,49 +18,54 @@ export function ScanListEditor({ scanLists, channels }: Props) {
     <div className="flex gap-4 h-full">
       {/* List */}
       <div className="w-56 shrink-0 space-y-1">
-        <h3 className="text-xs text-text-muted uppercase tracking-wider mb-2">Scan Lists</h3>
+        <h3 className="text-sm font-medium text-text-muted mb-3">Scan Lists</h3>
         {scanLists.map(sl => (
           <button
             key={sl.index}
             onClick={() => setSelected(sl.index)}
-            className={`w-full text-left px-3 py-2 rounded text-sm transition-colors flex justify-between ${
+            className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors flex justify-between ${
               selected === sl.index
-                ? 'bg-primary/20 text-primary-light'
-                : 'text-text hover:bg-surface-light'
+                ? 'bg-surface-lighter text-text'
+                : 'text-text-muted hover:bg-surface-light hover:text-text'
             }`}
           >
-            <span>{sl.name || `Scan List ${sl.index}`}</span>
-            <span className="text-[10px] text-text-muted">{sl.channelIndices.length}</span>
+            <div className="flex items-center gap-2">
+              {selected === sl.index && (
+                <div className="w-0.5 h-4 bg-primary rounded-full shrink-0" />
+              )}
+              <span>{sl.name || `Scan List ${sl.index}`}</span>
+            </div>
+            <span className="text-xs text-text-dimmed">{sl.channelIndices.length}</span>
           </button>
         ))}
         {scanLists.length === 0 && (
-          <div className="text-xs text-text-muted px-3 py-4">No scan lists configured</div>
+          <div className="text-sm text-text-dimmed px-3 py-6">No scan lists configured</div>
         )}
       </div>
 
       {/* Detail */}
       {scanList ? (
-        <div className="flex-1 space-y-2">
-          <h3 className="text-xs text-text-muted uppercase tracking-wider">
+        <div className="flex-1 space-y-3">
+          <h3 className="text-sm font-medium text-text-muted">
             {scanList.name} — {scanList.channelIndices.length} channels
           </h3>
-          <div className="text-[10px] text-text-muted mb-2">
-            Scan list editing is read-only in Phase 1. Full editing coming soon.
-          </div>
-          <div className="overflow-auto border border-border rounded max-h-[calc(100vh-220px)]">
+          <p className="text-xs text-text-dimmed">
+            Read-only. Full editing coming soon.
+          </p>
+          <div className="overflow-auto rounded-xl border border-border max-h-[calc(100vh-220px)]" style={{ boxShadow: 'var(--shadow-sm)' }}>
             {scanList.channelIndices.map((chIdx, pos) => {
               const ch = channelMap.get(chIdx);
               return (
                 <div
                   key={`${chIdx}-${pos}`}
-                  className="flex items-center gap-2 px-3 py-1.5 border-b border-border/50 text-xs"
+                  className="flex items-center gap-2 px-4 py-2 border-b border-border-subtle text-sm"
                 >
-                  <span className="text-text-muted w-6 text-right">{pos + 1}</span>
+                  <span className="text-text-dimmed w-6 text-right font-mono text-xs">{pos + 1}</span>
                   <span className="flex-1">{ch?.name ?? `Ch ${chIdx}`}</span>
-                  <span className="text-text-muted tabular-nums">
+                  <span className="text-text-muted tabular-nums font-mono text-xs">
                     {ch?.rxFrequency.toFixed(4)}
                   </span>
-                  <span className={`text-[10px] px-1 rounded ${
+                  <span className={`text-xs px-2 py-0.5 rounded-md font-medium ${
                     ch?.mode === 'digital' ? 'bg-accent-cyan/20 text-accent-cyan' : 'bg-accent-amber/20 text-accent-amber'
                   }`}>
                     {ch?.mode === 'digital' ? 'DMR' : 'FM'}
@@ -69,7 +74,7 @@ export function ScanListEditor({ scanLists, channels }: Props) {
               );
             })}
             {scanList.channelIndices.length === 0 && (
-              <div className="px-3 py-4 text-xs text-text-muted text-center">
+              <div className="px-4 py-6 text-sm text-text-dimmed text-center">
                 No channels in this scan list
               </div>
             )}

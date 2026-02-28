@@ -17,47 +17,52 @@ export function GroupListViewer({ groupLists, digitalContacts }: Props) {
     <div className="flex gap-4 h-full">
       {/* List */}
       <div className="w-56 shrink-0 space-y-1">
-        <h3 className="text-xs text-text-muted uppercase tracking-wider mb-2">Group Lists</h3>
+        <h3 className="text-sm font-medium text-text-muted mb-3">Group Lists</h3>
         {groupLists.map(gl => (
           <button
             key={gl.index}
             onClick={() => setSelected(gl.index)}
-            className={`w-full text-left px-3 py-2 rounded text-sm transition-colors flex justify-between ${
+            className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors flex justify-between ${
               selected === gl.index
-                ? 'bg-primary/20 text-primary-light'
-                : 'text-text hover:bg-surface-light'
+                ? 'bg-surface-lighter text-text'
+                : 'text-text-muted hover:bg-surface-light hover:text-text'
             }`}
           >
-            <span>{gl.name || `Group List ${gl.index + 1}`}</span>
-            <span className="text-[10px] text-text-muted">{gl.contactIndices.length}</span>
+            <div className="flex items-center gap-2">
+              {selected === gl.index && (
+                <div className="w-0.5 h-4 bg-primary rounded-full shrink-0" />
+              )}
+              <span>{gl.name || `Group List ${gl.index + 1}`}</span>
+            </div>
+            <span className="text-xs text-text-dimmed">{gl.contactIndices.length}</span>
           </button>
         ))}
         {groupLists.length === 0 && (
-          <div className="text-xs text-text-muted px-3 py-4">No group lists configured</div>
+          <div className="text-sm text-text-dimmed px-3 py-6">No group lists configured</div>
         )}
       </div>
 
       {/* Detail */}
       {groupList ? (
-        <div className="flex-1 space-y-2">
-          <h3 className="text-xs text-text-muted uppercase tracking-wider">
+        <div className="flex-1 space-y-3">
+          <h3 className="text-sm font-medium text-text-muted">
             {groupList.name} — {groupList.contactIndices.length} contacts
           </h3>
-          <div className="text-[10px] text-text-muted mb-2">
-            Group list editing is read-only. References digital contact indices.
-          </div>
-          <div className="overflow-auto border border-border rounded max-h-[calc(100vh-220px)]">
+          <p className="text-xs text-text-dimmed">
+            Read-only. References digital contact indices.
+          </p>
+          <div className="overflow-auto rounded-xl border border-border max-h-[calc(100vh-220px)]" style={{ boxShadow: 'var(--shadow-sm)' }}>
             {groupList.contactIndices.map((cIdx, pos) => {
               const contact = digitalContacts.find(dc => dc.index === cIdx);
               return (
                 <div
                   key={`${cIdx}-${pos}`}
-                  className="flex items-center gap-2 px-3 py-1.5 border-b border-border/50 text-xs"
+                  className="flex items-center gap-2 px-4 py-2 border-b border-border-subtle text-sm"
                 >
-                  <span className="text-text-muted w-6 text-right">{pos + 1}</span>
+                  <span className="text-text-dimmed w-6 text-right font-mono text-xs">{pos + 1}</span>
                   <span className="flex-1">Contact #{cIdx}</span>
                   {contact && (
-                    <span className={`text-[10px] px-1 rounded ${
+                    <span className={`text-xs px-2 py-0.5 rounded-md font-medium ${
                       contact.callType === 'group' ? 'bg-accent-cyan/20 text-accent-cyan' : 'bg-accent-amber/20 text-accent-amber'
                     }`}>
                       {contact.callType}
@@ -67,7 +72,7 @@ export function GroupListViewer({ groupLists, digitalContacts }: Props) {
               );
             })}
             {groupList.contactIndices.length === 0 && (
-              <div className="px-3 py-4 text-xs text-text-muted text-center">
+              <div className="px-4 py-6 text-sm text-text-dimmed text-center">
                 No contacts in this group list
               </div>
             )}
