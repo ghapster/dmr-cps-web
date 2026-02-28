@@ -41,8 +41,8 @@ TMPDIR=$(mktemp -d)
 cp -r dist/* "$TMPDIR/"
 echo -e "${GREEN}Build complete${NC}"
 
-# Extract version from the built HTML
-VERSION=$(grep -oE 'V[0-9]+\.[0-9]+' "$TMPDIR/index.html" | head -1 || echo "unknown")
+# Extract version from the built JS bundle (Vite inlines it there, not in index.html)
+VERSION=$(grep -rohE 'V[0-9]+\.[0-9]+' "$TMPDIR/assets/"*.js 2>/dev/null | head -1 || echo "unknown")
 echo -e "${CYAN}Version: ${VERSION}${NC}"
 
 echo -e "${CYAN}Switching to gh-pages...${NC}"
