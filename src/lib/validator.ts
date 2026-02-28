@@ -43,26 +43,6 @@ function isInKnownBand(freq: number): boolean {
 // ─── Channel validation ─────────────────────────────────────────────────────
 
 function validateChannels(channels: Channel[], issues: ValidationIssue[]): void {
-  // Rule: Duplicate RX frequencies
-  const rxFreqMap = new Map<number, number[]>();
-  for (const ch of channels) {
-    const existing = rxFreqMap.get(ch.rxFrequency);
-    if (existing) {
-      existing.push(ch.index);
-    } else {
-      rxFreqMap.set(ch.rxFrequency, [ch.index]);
-    }
-  }
-  for (const [freq, indices] of rxFreqMap) {
-    if (indices.length > 1) {
-      issues.push({
-        severity: 'warning',
-        message: `Duplicate RX frequency ${freq.toFixed(4)} MHz shared by channels: ${indices.join(', ')}`,
-        section: 'channel',
-      });
-    }
-  }
-
   // Rule: Duplicate channel names
   const nameMap = new Map<string, number[]>();
   for (const ch of channels) {
@@ -77,24 +57,6 @@ function validateChannels(channels: Channel[], issues: ValidationIssue[]): void 
       issues.push({
         severity: 'warning',
         message: `Duplicate channel name shared by channels: ${indices.join(', ')}`,
-        section: 'channel',
-      });
-    }
-  }
-
-  // Rule: Duplicate TX frequencies
-  const txFreqMap = new Map<number, number[]>();
-  for (const ch of channels) {
-    if (ch.txFrequency <= 0) continue;
-    const existing = txFreqMap.get(ch.txFrequency);
-    if (existing) existing.push(ch.index);
-    else txFreqMap.set(ch.txFrequency, [ch.index]);
-  }
-  for (const [freq, indices] of txFreqMap) {
-    if (indices.length > 1) {
-      issues.push({
-        severity: 'warning',
-        message: `Duplicate TX frequency ${freq.toFixed(4)} MHz shared by channels: ${indices.join(', ')}`,
         section: 'channel',
       });
     }
