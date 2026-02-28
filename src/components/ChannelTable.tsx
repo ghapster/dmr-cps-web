@@ -12,14 +12,23 @@ interface Props {
   onAddChannel: () => number; // returns the new channel's index
 }
 
-function EditableCell({ value, onCommit, type = 'text', options }: {
+function EditableCell({ value, onCommit, type = 'text', options, autoEdit = false }: {
   value: string | number;
   onCommit: (val: string) => void;
   type?: 'text' | 'number' | 'select';
   options?: { label: string; value: string }[];
+  autoEdit?: boolean;
 }) {
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(autoEdit);
   const [draft, setDraft] = useState(String(value));
+
+  // When autoEdit flips to true, enter edit mode
+  useEffect(() => {
+    if (autoEdit) {
+      setDraft(String(value));
+      setEditing(true);
+    }
+  }, [autoEdit, value]);
 
   if (!editing) {
     return (
@@ -73,7 +82,7 @@ export function ChannelTable({ channels, onUpdateChannel, onDeleteChannels, onDu
 
   // Scroll into view when a row is highlighted
   const highlightRef = useCallback((el: HTMLTableRowElement | null) => {
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, []);
 
   // Clear highlight after animation
@@ -85,11 +94,11 @@ export function ChannelTable({ channels, onUpdateChannel, onDeleteChannels, onDu
   }, [highlightIndex]);
 
   const handleAddChannel = () => {
-    // Clear filters so the new channel is visible
+    // Clear filters and sort descending so the new channel appears at the top
     setFilter('');
     setModeFilter('all');
     setSortKey('index');
-    setSortDir('asc');
+    setSortDir('desc');
     const newIndex = onAddChannel();
     setHighlightIndex(newIndex);
   };
@@ -247,6 +256,7 @@ export function ChannelTable({ channels, onUpdateChannel, onDeleteChannels, onDu
                   <EditableCell
                     value={ch.name}
                     onCommit={v => onUpdateChannel(ch.index, { name: v.slice(0, 16) })}
+                    autoEdit={ch.index === highlightIndex}
                   />
                 </td>
                 <td className="px-3 py-2 tabular-nums font-mono text-xs">
