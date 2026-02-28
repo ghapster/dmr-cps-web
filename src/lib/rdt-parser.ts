@@ -455,54 +455,37 @@ function parseDigitalContacts(
   const _digitalContactsRaw = new Uint8Array(buffer.slice(offset, offset + totalBytes));
 
   // Scan within the data blob for contact records
-  // Pattern: 3 pre-bytes + index(1) + 0x00 + callType(1: 0x10=group, 0x00=private) + data
+  // Record format: dmrId(3, uint24_le) + index(1) + 0x00 + callType(1: 0x10=group, 0x00=private) + encoded_data
   const digitalContacts: DigitalContact[] = [];
   const dataStart = offset + 2;
   const dataEnd = offset + totalBytes;
 
-  // Find records by scanning for sequential index patterns: idx 00 10 or idx 00 00
+  // Find records by scanning for sequential index patterns: idx 00 (10|00)
+  // Build positions list for record boundaries
+  const positions: number[] = [];
+  let nextExpectedIdx = 1;
   for (let i = dataStart + 3; i < dataEnd - 2; i++) {
-    const potentialIdx = view.getUint8(i);
-    const nextByte = view.getUint8(i + 1);
-    const callTypeByte = view.getUint8(i + 2);
-
-    if (nextByte === 0x00 && (callTypeByte === 0x10 || callTypeByte === 0x00) && potentialIdx >= 1 && potentialIdx <= 250) {
-      // Check if this is a sequential index (matches expected next contact index)
-      if (digitalContacts.length === 0 || potentialIdx === digitalContacts[digitalContacts.length - 1].index + 1) {
-        const callType = callTypeByte === 0x10 ? 'group' as const : 'private' as const;
-        // Record raw = from 3 bytes before index to the next record start (or section end)
-        // We'll determine _raw size when we find the next record
-        digitalContacts.push({
-          index: potentialIdx,
-          callType,
-          _raw: new Uint8Array(0), // placeholder, filled below
-        });
-      }
+    const b = view.getUint8(i);
+    if (b === nextExpectedIdx && view.getUint8(i + 1) === 0x00 &&
+        (view.getUint8(i + 2) === 0x10 || view.getUint8(i + 2) === 0x00)) {
+      positions.push(i - 3); // record starts 3 bytes before index (at the dmrId)
+      nextExpectedIdx++;
     }
   }
 
-  // Now assign _raw for each contact based on spacing between found indices
-  // Each record starts 3 bytes before its index position
-  // For simplicity, since we write the whole section blob, _raw per contact is informational
-  // We'll compute approximate record boundaries
-  if (digitalContacts.length > 0) {
-    // Re-scan to find exact positions
-    const positions: number[] = [];
-    let nextExpectedIdx = 1;
-    for (let i = dataStart + 3; i < dataEnd - 2; i++) {
-      const b = view.getUint8(i);
-      if (b === nextExpectedIdx && view.getUint8(i + 1) === 0x00 &&
-          (view.getUint8(i + 2) === 0x10 || view.getUint8(i + 2) === 0x00)) {
-        positions.push(i - 3); // record starts 3 bytes before index
-        nextExpectedIdx++;
-      }
-    }
+  // Parse each record
+  for (let c = 0; c < positions.length; c++) {
+    const recStart = positions[c];
+    const recEnd = c + 1 < positions.length ? positions[c + 1] : dataEnd;
 
-    for (let c = 0; c < digitalContacts.length && c < positions.length; c++) {
-      const recStart = positions[c];
-      const recEnd = c + 1 < positions.length ? positions[c + 1] : dataEnd;
-      digitalContacts[c]._raw = new Uint8Array(buffer.slice(recStart, recEnd));
-    }
+    // DMR TG/ID from first 3 bytes (uint24_le)
+    const dmrId = readUint24LE(view, recStart);
+    const index = view.getUint8(recStart + 3);
+    const callTypeByte = view.getUint8(recStart + 5);
+    const callType = callTypeByte === 0x10 ? 'group' as const : 'private' as const;
+    const _raw = new Uint8Array(buffer.slice(recStart, recEnd));
+
+    digitalContacts.push({ index, dmrId, callType, _raw });
   }
 
   return { digitalContacts, _digitalContactsRaw, bytesConsumed: totalBytes };
@@ -620,42 +603,76 @@ function parseAprsSettings(
   const bytesConsumed = sectionEnd - sectionStart;
   const _aprsRaw = new Uint8Array(buffer.slice(sectionStart, sectionEnd));
 
-  // Extract readable strings from within the APRS blob
+  // Extract fields from the APRS blob using known D578UV layout:
+  // GPS message (null-term) + config bytes + destination (null-term) +
+  // callsign (6 bytes) + SSID (1 byte) + paths (null-term, concatenated) + comment (null-term) + config tail
   let pos = offset;
 
-  // GPS message (null-terminated)
+  // GPS message (null-terminated, up to 128 bytes)
   const gpsMsg = readNullTermString(view, pos, 128);
   const gpsMessage = gpsMsg.text;
   pos += gpsMsg.bytesConsumed;
 
-  // Scan remaining bytes for ASCII string fields
-  // Layout after GPS message: padding, then callsign fields
-  // Find strings by scanning for printable ASCII runs
-  const strings: string[] = [];
+  // Scan remaining bytes for null-terminated ASCII string fields
+  // Find all printable string runs separated by non-printable bytes
+  const stringEntries: { text: string; startPos: number }[] = [];
   let currentStr = '';
+  let strStart = pos;
   for (let i = pos; i < sectionEnd; i++) {
     const b = view.getUint8(i);
     if (b >= 0x20 && b < 0x7f) {
+      if (currentStr.length === 0) strStart = i;
       currentStr += String.fromCharCode(b);
     } else {
-      if (currentStr.length >= 3) strings.push(currentStr);
+      if (currentStr.length >= 3) {
+        stringEntries.push({ text: currentStr, startPos: strStart });
+      }
       currentStr = '';
     }
   }
-  if (currentStr.length >= 3) strings.push(currentStr);
+  if (currentStr.length >= 3) {
+    stringEntries.push({ text: currentStr, startPos: strStart });
+  }
 
-  // Assign strings to fields based on known D578UV APRS layout
-  // Typical order: destination (APAT51), callsign (BG6LKK), path (WIDE1-1WIDE2-1), comment
-  const destination = strings.length > 0 ? strings[0] : '';
-  const callsign = strings.length > 1 ? strings[1] : '';
-  const path = strings.length > 2 ? strings[2] : '';
-  const comment = strings.length > 3 ? strings[3] : '';
+  // Assign strings: destination, callsign, paths (concatenated), comment
+  const destination = stringEntries.length > 0 ? stringEntries[0].text : '';
+  const callsign = stringEntries.length > 1 ? stringEntries[1].text : '';
+
+  // SSID byte sits right after callsign (before paths)
+  let ssid = 0;
+  if (stringEntries.length > 1) {
+    const afterCallsign = stringEntries[1].startPos + stringEntries[1].text.length;
+    if (afterCallsign < sectionEnd) {
+      ssid = view.getUint8(afterCallsign);
+    }
+  }
+
+  // Paths are concatenated (e.g. "WIDE1-1WIDE2-1") — split at digit→uppercase boundaries
+  const rawPathStr = stringEntries.length > 2 ? stringEntries[2].text : '';
+  const paths: string[] = [];
+  if (rawPathStr) {
+    let current = '';
+    for (let i = 0; i < rawPathStr.length; i++) {
+      current += rawPathStr[i];
+      // Split when a digit is followed by an uppercase letter (next path segment)
+      if (i + 1 < rawPathStr.length &&
+          rawPathStr[i] >= '0' && rawPathStr[i] <= '9' &&
+          rawPathStr[i + 1] >= 'A' && rawPathStr[i + 1] <= 'Z') {
+        paths.push(current);
+        current = '';
+      }
+    }
+    if (current) paths.push(current);
+  }
+
+  const comment = stringEntries.length > 3 ? stringEntries[3].text : '';
 
   const aprsSettings: AprsSettings = {
     gpsMessage,
     callsign,
+    ssid,
     destination,
-    path,
+    paths,
     comment,
     _raw: _aprsRaw,
   };

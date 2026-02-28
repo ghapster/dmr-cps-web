@@ -67,6 +67,7 @@ export interface AnalogContact {
 
 export interface DigitalContact {
   index: number;
+  dmrId: number;           // Talk Group ID (group) or DMR ID (private), uint24_le from pre-bytes
   callType: 'group' | 'private' | 'all';
   _raw: Uint8Array;
 }
@@ -86,8 +87,9 @@ export interface GroupList {
 export interface AprsSettings {
   gpsMessage: string;
   callsign: string;
+  ssid: number;
   destination: string;
-  path: string;
+  paths: string[];          // e.g. ["WIDE1-1", "WIDE2-1"]
   comment: string;
   _raw: Uint8Array;
 }

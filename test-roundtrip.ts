@@ -47,7 +47,7 @@ console.log(`  _trailingBytes:       ${codeplug._trailingBytes.byteLength} bytes
 
 console.log(`\nDIGITAL CONTACTS:`);
 for (const dc of codeplug.digitalContacts.slice(0, 5)) {
-  console.log(`  [${dc.index}] ${dc.callType} (${dc._raw.byteLength} bytes)`);
+  console.log(`  [${dc.index}] ${dc.callType} TG/ID=${dc.dmrId} (${dc._raw.byteLength} bytes)`);
 }
 if (codeplug.digitalContacts.length > 5)
   console.log(`  ... (${codeplug.digitalContacts.length - 5} more)`);
@@ -65,8 +65,8 @@ for (const gl of codeplug.groupLists) {
 console.log(`\nAPRS SETTINGS:`);
 console.log(`  GPS Message:  "${codeplug.aprsSettings.gpsMessage}"`);
 console.log(`  Destination:  "${codeplug.aprsSettings.destination}"`);
-console.log(`  Callsign:     "${codeplug.aprsSettings.callsign}"`);
-console.log(`  Path:         "${codeplug.aprsSettings.path}"`);
+console.log(`  Callsign:     "${codeplug.aprsSettings.callsign}-${codeplug.aprsSettings.ssid}"`);
+console.log(`  Paths:        ${JSON.stringify(codeplug.aprsSettings.paths)}`);
 console.log(`  Comment:      "${codeplug.aprsSettings.comment}"`);
 
 console.log(`\nROAMING CHANNELS:`);

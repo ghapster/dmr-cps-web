@@ -7,9 +7,9 @@ interface Props {
 export function AprsViewer({ aprsSettings }: Props) {
   const fields = [
     { label: 'GPS Message', value: aprsSettings.gpsMessage },
-    { label: 'Callsign', value: aprsSettings.callsign },
+    { label: 'Callsign', value: `${aprsSettings.callsign}-${aprsSettings.ssid}` },
     { label: 'Destination', value: aprsSettings.destination },
-    { label: 'Path', value: aprsSettings.path },
+    { label: 'Path', value: aprsSettings.paths.join(', ') },
     { label: 'Comment', value: aprsSettings.comment },
   ];
 
