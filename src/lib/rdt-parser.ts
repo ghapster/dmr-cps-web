@@ -5,6 +5,12 @@ import type {
   Zone,
   ScanList,
   AnalogContact,
+  DigitalContact,
+  TextMessage,
+  GroupList,
+  AprsSettings,
+  RoamingChannel,
+  RoamingZone,
   Codeplug,
   RepeaterMode,
   ChannelMode,
@@ -406,6 +412,342 @@ function parseAnalogContacts(
   return { analogContacts, bytesConsumed: pos - offset };
 }
 
+// --- New Section Parsers -------------------------------------------------
+
+/**
+ * Search for an ASCII string in the buffer starting from `start`.
+ * Returns the byte offset of the first match, or -1 if not found.
+ */
+function findString(buffer: ArrayBuffer, start: number, needle: string): number {
+  const bytes = new Uint8Array(buffer);
+  outer:
+  for (let i = start; i <= bytes.length - needle.length; i++) {
+    for (let j = 0; j < needle.length; j++) {
+      if (bytes[i + j] !== needle.charCodeAt(j)) continue outer;
+    }
+    return i;
+  }
+  return -1;
+}
+
+/**
+ * Read a null-terminated ASCII string of arbitrary length.
+ */
+function readNullTermString(view: DataView, offset: number, maxLen: number = 256): { text: string; bytesConsumed: number } {
+  const bytes: number[] = [];
+  for (let i = 0; i < maxLen; i++) {
+    if (offset + i >= view.byteLength) break;
+    const b = view.getUint8(offset + i);
+    if (b === 0) return { text: String.fromCharCode(...bytes), bytesConsumed: bytes.length + 1 };
+    bytes.push(b);
+  }
+  return { text: String.fromCharCode(...bytes), bytesConsumed: bytes.length };
+}
+
+function parseDigitalContacts(
+  view: DataView,
+  buffer: ArrayBuffer,
+  offset: number,
+): { digitalContacts: DigitalContact[]; _digitalContactsRaw: Uint8Array; bytesConsumed: number } {
+  // Section format: uint16_le size field, then `size` bytes of contact data
+  const sizeField = view.getUint16(offset, true);
+  const totalBytes = 2 + sizeField;
+  const _digitalContactsRaw = new Uint8Array(buffer.slice(offset, offset + totalBytes));
+
+  // Scan within the data blob for contact records
+  // Pattern: 3 pre-bytes + index(1) + 0x00 + callType(1: 0x10=group, 0x00=private) + data
+  const digitalContacts: DigitalContact[] = [];
+  const dataStart = offset + 2;
+  const dataEnd = offset + totalBytes;
+
+  // Find records by scanning for sequential index patterns: idx 00 10 or idx 00 00
+  for (let i = dataStart + 3; i < dataEnd - 2; i++) {
+    const potentialIdx = view.getUint8(i);
+    const nextByte = view.getUint8(i + 1);
+    const callTypeByte = view.getUint8(i + 2);
+
+    if (nextByte === 0x00 && (callTypeByte === 0x10 || callTypeByte === 0x00) && potentialIdx >= 1 && potentialIdx <= 250) {
+      // Check if this is a sequential index (matches expected next contact index)
+      if (digitalContacts.length === 0 || potentialIdx === digitalContacts[digitalContacts.length - 1].index + 1) {
+        const callType = callTypeByte === 0x10 ? 'group' as const : 'private' as const;
+        // Record raw = from 3 bytes before index to the next record start (or section end)
+        // We'll determine _raw size when we find the next record
+        digitalContacts.push({
+          index: potentialIdx,
+          callType,
+          _raw: new Uint8Array(0), // placeholder, filled below
+        });
+      }
+    }
+  }
+
+  // Now assign _raw for each contact based on spacing between found indices
+  // Each record starts 3 bytes before its index position
+  // For simplicity, since we write the whole section blob, _raw per contact is informational
+  // We'll compute approximate record boundaries
+  if (digitalContacts.length > 0) {
+    // Re-scan to find exact positions
+    const positions: number[] = [];
+    let nextExpectedIdx = 1;
+    for (let i = dataStart + 3; i < dataEnd - 2; i++) {
+      const b = view.getUint8(i);
+      if (b === nextExpectedIdx && view.getUint8(i + 1) === 0x00 &&
+          (view.getUint8(i + 2) === 0x10 || view.getUint8(i + 2) === 0x00)) {
+        positions.push(i - 3); // record starts 3 bytes before index
+        nextExpectedIdx++;
+      }
+    }
+
+    for (let c = 0; c < digitalContacts.length && c < positions.length; c++) {
+      const recStart = positions[c];
+      const recEnd = c + 1 < positions.length ? positions[c + 1] : dataEnd;
+      digitalContacts[c]._raw = new Uint8Array(buffer.slice(recStart, recEnd));
+    }
+  }
+
+  return { digitalContacts, _digitalContactsRaw, bytesConsumed: totalBytes };
+}
+
+function parseTextMessages(
+  view: DataView,
+  buffer: ArrayBuffer,
+  offset: number,
+): { textMessages: TextMessage[]; _textMessageHeader: Uint8Array; bytesConsumed: number } {
+  // 8-byte header (preserve verbatim)
+  const _textMessageHeader = new Uint8Array(buffer.slice(offset, offset + 8));
+  let pos = offset + 8;
+
+  // Count byte
+  const count = view.getUint8(pos);
+  pos += 1;
+
+  const textMessages: TextMessage[] = [];
+
+  for (let i = 0; i < count; i++) {
+    const index = view.getUint8(pos);
+    pos += 1;
+
+    // Read null-terminated text
+    const { text, bytesConsumed: textBytes } = readNullTermString(view, pos);
+    pos += textBytes;
+
+    textMessages.push({ index, text });
+  }
+
+  return { textMessages, _textMessageHeader, bytesConsumed: pos - offset };
+}
+
+function parseGroupLists(
+  view: DataView,
+  buffer: ArrayBuffer,
+  offset: number,
+  fileSize: number,
+): { groupLists: GroupList[]; _groupListsRaw: Uint8Array; bytesConsumed: number } {
+  const sectionStart = offset;
+
+  // Determine where this section ends by finding the APRS marker
+  let sectionEnd: number;
+  const aprsPos = findString(buffer, offset, 'My current GPS');
+  if (aprsPos > 0) {
+    sectionEnd = aprsPos;
+  } else {
+    // Fallback: consume only the structured part (no gap)
+    sectionEnd = fileSize;
+  }
+
+  // Parse structured group list data within the section
+  let pos = offset;
+
+  // 3-byte header: byte[2] appears to be group list count
+  const count = view.getUint8(pos + 2);
+  pos += 3;
+
+  const groupLists: GroupList[] = [];
+
+  for (let i = 0; i < count; i++) {
+    const recordStart = pos;
+
+    // 4+4 = 8 bytes of settings
+    pos += 8;
+
+    // Name (null-terminated, max 16)
+    const { name, nameLen } = readName(view, pos);
+    pos += nameFieldSize(nameLen);
+
+    // 4-byte entry header: last byte is entry count
+    const entryCount = view.getUint8(pos + 3);
+    pos += 4;
+
+    // Entries: entryCount × 5 bytes each
+    const contactIndices: number[] = [];
+    for (let j = 0; j < entryCount; j++) {
+      // Each 5-byte entry: position(1) + contactIdx(1) + extra(3)
+      // The second byte appears to be the digital contact index
+      const contactIdx = view.getUint8(pos + 1);
+      contactIndices.push(contactIdx);
+      pos += 5;
+    }
+
+    const _raw = new Uint8Array(buffer.slice(recordStart, pos));
+    groupLists.push({ index: i, name, contactIndices, _raw });
+  }
+
+  // The full section raw includes everything up to APRS (including post-entries config gap)
+  const bytesConsumed = sectionEnd - sectionStart;
+  const _groupListsRaw = new Uint8Array(buffer.slice(sectionStart, sectionEnd));
+
+  return { groupLists, _groupListsRaw, bytesConsumed };
+}
+
+function parseAprsSettings(
+  view: DataView,
+  buffer: ArrayBuffer,
+  offset: number,
+  fileSize: number,
+): { aprsSettings: AprsSettings; _aprsRaw: Uint8Array; bytesConsumed: number } {
+  const sectionStart = offset;
+
+  // Determine section end by finding the first "Roaming CH" marker
+  let sectionEnd: number;
+  const roamPos = findString(buffer, offset + 10, 'Roaming CH');
+  if (roamPos > 0) {
+    sectionEnd = roamPos;
+  } else {
+    // Fallback: APRS section is typically 114 bytes for D578UV
+    sectionEnd = Math.min(offset + 114, fileSize);
+  }
+
+  const bytesConsumed = sectionEnd - sectionStart;
+  const _aprsRaw = new Uint8Array(buffer.slice(sectionStart, sectionEnd));
+
+  // Extract readable strings from within the APRS blob
+  let pos = offset;
+
+  // GPS message (null-terminated)
+  const gpsMsg = readNullTermString(view, pos, 128);
+  const gpsMessage = gpsMsg.text;
+  pos += gpsMsg.bytesConsumed;
+
+  // Scan remaining bytes for ASCII string fields
+  // Layout after GPS message: padding, then callsign fields
+  // Find strings by scanning for printable ASCII runs
+  const strings: string[] = [];
+  let currentStr = '';
+  for (let i = pos; i < sectionEnd; i++) {
+    const b = view.getUint8(i);
+    if (b >= 0x20 && b < 0x7f) {
+      currentStr += String.fromCharCode(b);
+    } else {
+      if (currentStr.length >= 3) strings.push(currentStr);
+      currentStr = '';
+    }
+  }
+  if (currentStr.length >= 3) strings.push(currentStr);
+
+  // Assign strings to fields based on known D578UV APRS layout
+  // Typical order: destination (APAT51), callsign (BG6LKK), path (WIDE1-1WIDE2-1), comment
+  const destination = strings.length > 0 ? strings[0] : '';
+  const callsign = strings.length > 1 ? strings[1] : '';
+  const path = strings.length > 2 ? strings[2] : '';
+  const comment = strings.length > 3 ? strings[3] : '';
+
+  const aprsSettings: AprsSettings = {
+    gpsMessage,
+    callsign,
+    destination,
+    path,
+    comment,
+    _raw: _aprsRaw,
+  };
+
+  return { aprsSettings, _aprsRaw, bytesConsumed };
+}
+
+function parseRoaming(
+  view: DataView,
+  buffer: ArrayBuffer,
+  offset: number,
+  fileSize: number,
+): { roamingChannels: RoamingChannel[]; roamingZones: RoamingZone[]; _roamingRaw: Uint8Array; bytesConsumed: number } {
+  const sectionStart = offset;
+  let pos = offset;
+
+  // Parse roaming channels: each starts with a null-terminated name
+  const roamingChannels: RoamingChannel[] = [];
+
+  // Find all "Roaming CH" names to determine channel count and positions
+  const channelPositions: number[] = [];
+  let searchPos = offset;
+  while (true) {
+    const found = findString(buffer, searchPos, 'Roaming CH');
+    if (found < 0 || found >= fileSize) break;
+    channelPositions.push(found);
+    searchPos = found + 10; // skip past "Roaming CH"
+  }
+
+  // Find the roaming zone start
+  const zoneStart = findString(buffer, offset, 'ROAM ZONE');
+
+  // Parse each roaming channel
+  for (let i = 0; i < channelPositions.length; i++) {
+    const chStart = channelPositions[i];
+    const chEnd = i + 1 < channelPositions.length ? channelPositions[i + 1] :
+                  (zoneStart >= 0 ? zoneStart : fileSize);
+
+    const { text: name } = readNullTermString(view, chStart);
+    const _raw = new Uint8Array(buffer.slice(chStart, chEnd));
+
+    roamingChannels.push({ index: i + 1, name, _raw });
+    pos = chEnd;
+  }
+
+  // Parse roaming zone(s)
+  const roamingZones: RoamingZone[] = [];
+
+  if (zoneStart >= 0) {
+    pos = zoneStart;
+    const { text: zoneName, bytesConsumed: nameBytes } = readNullTermString(view, pos);
+    pos += nameBytes;
+
+    // After name: channel count(1) + padding(1) + channel refs
+    const channelCount = view.getUint8(pos);
+    pos += 1;
+    pos += 1; // padding byte
+
+    const channelIndices: number[] = [];
+    for (let j = 0; j < channelCount; j++) {
+      channelIndices.push(view.getUint8(pos));
+      pos += 1;
+    }
+
+    // Consume remaining zone config bytes until we hit a run of zeros (>=16)
+    // or reach the file end
+    let zoneEnd = pos;
+    let zeroCount = 0;
+    for (let i = pos; i < fileSize; i++) {
+      if (view.getUint8(i) === 0) {
+        zeroCount++;
+        if (zeroCount >= 16) {
+          zoneEnd = i - zeroCount + 1;
+          break;
+        }
+      } else {
+        zeroCount = 0;
+        zoneEnd = i + 1;
+      }
+    }
+
+    const _raw = new Uint8Array(buffer.slice(zoneStart, zoneEnd));
+    roamingZones.push({ index: 0, name: zoneName, channelIndices, _raw });
+    pos = zoneEnd;
+  }
+
+  const bytesConsumed = pos - sectionStart;
+  const _roamingRaw = new Uint8Array(buffer.slice(sectionStart, pos));
+
+  return { roamingChannels, roamingZones, _roamingRaw, bytesConsumed };
+}
+
 // --- Main Parser ---------------------------------------------------------
 
 export function parseRdt(buffer: ArrayBuffer): Codeplug {
@@ -452,6 +794,31 @@ export function parseRdt(buffer: ArrayBuffer): Codeplug {
   const { analogContacts, bytesConsumed: analogContactBytes } = parseAnalogContacts(view, buffer, pos);
   pos += analogContactBytes;
 
+  // --- Digital Contacts ---
+  const { digitalContacts, _digitalContactsRaw, bytesConsumed: digitalContactBytes } =
+    parseDigitalContacts(view, buffer, pos);
+  pos += digitalContactBytes;
+
+  // --- Text Messages ---
+  const { textMessages, _textMessageHeader, bytesConsumed: textMessageBytes } =
+    parseTextMessages(view, buffer, pos);
+  pos += textMessageBytes;
+
+  // --- Group Lists ---
+  const { groupLists, _groupListsRaw, bytesConsumed: groupListBytes } =
+    parseGroupLists(view, buffer, pos, buffer.byteLength);
+  pos += groupListBytes;
+
+  // --- APRS Settings ---
+  const { aprsSettings, _aprsRaw, bytesConsumed: aprsBytes } =
+    parseAprsSettings(view, buffer, pos, buffer.byteLength);
+  pos += aprsBytes;
+
+  // --- Roaming ---
+  const { roamingChannels, roamingZones, _roamingRaw, bytesConsumed: roamingBytes } =
+    parseRoaming(view, buffer, pos, buffer.byteLength);
+  pos += roamingBytes;
+
   // --- Trailing bytes (anything after the last parsed section) ---
   const _trailingBytes =
     pos < buffer.byteLength
@@ -466,6 +833,17 @@ export function parseRdt(buffer: ArrayBuffer): Codeplug {
     zones,
     scanLists,
     analogContacts,
+    digitalContacts,
+    _digitalContactsRaw,
+    textMessages,
+    _textMessageHeader,
+    groupLists,
+    _groupListsRaw,
+    aprsSettings,
+    _aprsRaw,
+    roamingChannels,
+    roamingZones,
+    _roamingRaw,
     _trailingBytes,
   };
 }

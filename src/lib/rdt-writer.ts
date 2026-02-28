@@ -108,6 +108,25 @@ function computeTotalSize(codeplug: Codeplug): number {
     size += ac._raw.byteLength;
   }
 
+  // Digital contacts (entire section blob)
+  size += codeplug._digitalContactsRaw.byteLength;
+
+  // Text messages (rebuilt from editable data)
+  size += codeplug._textMessageHeader.byteLength; // 8-byte header
+  size += 1; // count byte
+  for (const msg of codeplug.textMessages) {
+    size += 1 + msg.text.length + 1; // index + text + null terminator
+  }
+
+  // Group lists (entire section blob)
+  size += codeplug._groupListsRaw.byteLength;
+
+  // APRS settings (entire section blob)
+  size += codeplug._aprsRaw.byteLength;
+
+  // Roaming (entire section blob)
+  size += codeplug._roamingRaw.byteLength;
+
   // Trailing bytes
   size += codeplug._trailingBytes.byteLength;
 
@@ -325,7 +344,51 @@ export function writeRdt(codeplug: Codeplug): ArrayBuffer {
   }
 
   // -----------------------------------------------------------------------
-  // 8. Trailing bytes
+  // 8. Digital Contacts (copy entire section blob verbatim)
+  // -----------------------------------------------------------------------
+  bytes.set(codeplug._digitalContactsRaw, pos);
+  pos += codeplug._digitalContactsRaw.byteLength;
+
+  // -----------------------------------------------------------------------
+  // 9. Text Messages (rebuilt from editable data)
+  // -----------------------------------------------------------------------
+  bytes.set(codeplug._textMessageHeader, pos);
+  pos += codeplug._textMessageHeader.byteLength;
+
+  view.setUint8(pos, codeplug.textMessages.length);
+  pos += 1;
+
+  for (const msg of codeplug.textMessages) {
+    view.setUint8(pos, msg.index);
+    pos += 1;
+    for (let i = 0; i < msg.text.length; i++) {
+      view.setUint8(pos, msg.text.charCodeAt(i));
+      pos += 1;
+    }
+    view.setUint8(pos, 0); // null terminator
+    pos += 1;
+  }
+
+  // -----------------------------------------------------------------------
+  // 10. Group Lists (copy entire section blob verbatim)
+  // -----------------------------------------------------------------------
+  bytes.set(codeplug._groupListsRaw, pos);
+  pos += codeplug._groupListsRaw.byteLength;
+
+  // -----------------------------------------------------------------------
+  // 11. APRS Settings (copy entire section blob verbatim)
+  // -----------------------------------------------------------------------
+  bytes.set(codeplug._aprsRaw, pos);
+  pos += codeplug._aprsRaw.byteLength;
+
+  // -----------------------------------------------------------------------
+  // 12. Roaming (copy entire section blob verbatim)
+  // -----------------------------------------------------------------------
+  bytes.set(codeplug._roamingRaw, pos);
+  pos += codeplug._roamingRaw.byteLength;
+
+  // -----------------------------------------------------------------------
+  // 13. Trailing bytes
   // -----------------------------------------------------------------------
   bytes.set(codeplug._trailingBytes, pos);
   pos += codeplug._trailingBytes.byteLength;

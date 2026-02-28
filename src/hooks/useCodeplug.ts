@@ -121,6 +121,15 @@ export function useCodeplug() {
     }));
   }, [updateCodeplug]);
 
+  const updateTextMessage = useCallback((index: number, text: string) => {
+    updateCodeplug(cp => ({
+      ...cp,
+      textMessages: cp.textMessages.map(msg =>
+        msg.index === index ? { ...msg, text } : msg
+      ),
+    }));
+  }, [updateCodeplug]);
+
   const undo = useCallback(() => {
     setState(s => {
       if (!s.codeplug || undoStack.current.length === 0) return s;
@@ -150,6 +159,7 @@ export function useCodeplug() {
     duplicateChannel,
     updateZone,
     updateRadioId,
+    updateTextMessage,
     updateCodeplug,
     undo,
     redo,

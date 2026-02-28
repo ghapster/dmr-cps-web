@@ -65,6 +65,46 @@ export interface AnalogContact {
   _raw: Uint8Array;
 }
 
+export interface DigitalContact {
+  index: number;
+  callType: 'group' | 'private' | 'all';
+  _raw: Uint8Array;
+}
+
+export interface TextMessage {
+  index: number;
+  text: string;
+}
+
+export interface GroupList {
+  index: number;
+  name: string;
+  contactIndices: number[];
+  _raw: Uint8Array;
+}
+
+export interface AprsSettings {
+  gpsMessage: string;
+  callsign: string;
+  destination: string;
+  path: string;
+  comment: string;
+  _raw: Uint8Array;
+}
+
+export interface RoamingChannel {
+  index: number;
+  name: string;
+  _raw: Uint8Array;
+}
+
+export interface RoamingZone {
+  index: number;
+  name: string;
+  channelIndices: number[];
+  _raw: Uint8Array;
+}
+
 export interface Codeplug {
   header: FileHeader;
   settingsBlock: Uint8Array;   // preserved verbatim — not edited in Phase 1
@@ -73,6 +113,18 @@ export interface Codeplug {
   zones: Zone[];
   scanLists: ScanList[];
   analogContacts: AnalogContact[];
+  // New parsed sections (previously in _trailingBytes)
+  digitalContacts: DigitalContact[];
+  _digitalContactsRaw: Uint8Array;   // entire section blob (2-byte size + data)
+  textMessages: TextMessage[];
+  _textMessageHeader: Uint8Array;    // 8 bytes before count
+  groupLists: GroupList[];
+  _groupListsRaw: Uint8Array;        // entire section including post-entries config
+  aprsSettings: AprsSettings;
+  _aprsRaw: Uint8Array;              // entire APRS section
+  roamingChannels: RoamingChannel[];
+  roamingZones: RoamingZone[];
+  _roamingRaw: Uint8Array;           // entire roaming section
   // Keep full raw bytes for anything after the last parsed section
   _trailingBytes: Uint8Array;
 }
@@ -94,4 +146,9 @@ export type ActiveSection =
   | 'contacts'
   | 'scanLists'
   | 'settings'
-  | 'radioIds';
+  | 'radioIds'
+  | 'digitalContacts'
+  | 'textMessages'
+  | 'groupLists'
+  | 'aprs'
+  | 'roaming';

@@ -8,13 +8,18 @@ import { ZoneEditor } from './components/ZoneEditor';
 import { ContactTable } from './components/ContactTable';
 import { ScanListEditor } from './components/ScanListEditor';
 import { SettingsViewer } from './components/SettingsViewer';
+import { DigitalContactTable } from './components/DigitalContactTable';
+import { TextMessageEditor } from './components/TextMessageEditor';
+import { GroupListViewer } from './components/GroupListViewer';
+import { AprsViewer } from './components/AprsViewer';
+import { RoamingViewer } from './components/RoamingViewer';
 
 function App() {
   const {
     codeplug, fileName, dirty, issues,
     openFile, saveFile, exportCsv,
     updateChannel, deleteChannels, duplicateChannel,
-    updateZone, updateRadioId,
+    updateZone, updateRadioId, updateTextMessage,
     undo, redo, canUndo, canRedo,
   } = useCodeplug();
 
@@ -118,6 +123,39 @@ function App() {
           <ScanListEditor
             scanLists={codeplug.scanLists}
             channels={codeplug.channels}
+          />
+        );
+      case 'digitalContacts':
+        return (
+          <DigitalContactTable
+            digitalContacts={codeplug.digitalContacts}
+          />
+        );
+      case 'textMessages':
+        return (
+          <TextMessageEditor
+            textMessages={codeplug.textMessages}
+            onUpdateTextMessage={updateTextMessage}
+          />
+        );
+      case 'groupLists':
+        return (
+          <GroupListViewer
+            groupLists={codeplug.groupLists}
+            digitalContacts={codeplug.digitalContacts}
+          />
+        );
+      case 'aprs':
+        return (
+          <AprsViewer
+            aprsSettings={codeplug.aprsSettings}
+          />
+        );
+      case 'roaming':
+        return (
+          <RoamingViewer
+            roamingChannels={codeplug.roamingChannels}
+            roamingZones={codeplug.roamingZones}
           />
         );
       case 'settings':

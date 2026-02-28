@@ -20,7 +20,12 @@ export function AppShell({ activeSection, onSectionChange, codeplug, issues, chi
     { key: 'zones', label: 'Zones', count: codeplug?.zones.length },
     { key: 'radioIds', label: 'Radio IDs', count: codeplug?.radioIds.length },
     { key: 'contacts', label: 'Contacts', count: codeplug?.analogContacts.length },
+    { key: 'digitalContacts', label: 'Digital Contacts', count: codeplug?.digitalContacts.length },
     { key: 'scanLists', label: 'Scan Lists', count: codeplug?.scanLists.length },
+    { key: 'textMessages', label: 'Text Messages', count: codeplug?.textMessages.length },
+    { key: 'groupLists', label: 'Group Lists', count: codeplug?.groupLists.length },
+    { key: 'aprs', label: 'APRS' },
+    { key: 'roaming', label: 'Roaming', count: codeplug ? codeplug.roamingChannels.length + codeplug.roamingZones.length : undefined },
     { key: 'settings', label: 'Settings' },
   ];
 
