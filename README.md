@@ -1,73 +1,122 @@
-# React + TypeScript + Vite
+# DMR CPS — Web Edition
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A browser-based codeplug editor for the **Anytone D578UV** DMR radio. Open, edit, and save `.RDT` codeplug files entirely client-side — no installs, no uploads, no server.
 
-Currently, two official plugins are available:
+**Live:** [ghapster.github.io/dmr-cps-web](https://ghapster.github.io/dmr-cps-web/)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Features
 
-## React Compiler
+- **Drag-and-drop** or click to open `.RDT` files
+- **Round-trip safe** — binary-identical save (unmodified fields preserved byte-for-byte)
+- **Undo/Redo** with Ctrl+Z / Ctrl+Y (50-level stack)
+- **Keyboard shortcuts** — Ctrl+S to save
+- **Validation** — frequency band checks, duplicate warnings, reference integrity
+- **CSV export** of channel data
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Sections
 
-## Expanding the ESLint configuration
+| Section | Status | Notes |
+|---------|--------|-------|
+| Channels | **Editable** | Inline editing (name, RX/TX freq, mode, power, CC, TS). Sort, filter by mode/search, multi-select delete, duplicate. |
+| Zones | **Editable** | Add/remove/reorder channels within zones. |
+| Radio IDs | **Editable** | Edit DMR ID and name. |
+| DTMF Contacts | Read-only | Displays code and name. |
+| Digital Contacts | **Editable** | Edit DMR ID and Call Type (group/private). Names use proprietary encoding — not yet decoded. |
+| Scan Lists | Read-only | View scan list membership. |
+| Text Messages | **Editable** | Edit message text (144 char max). |
+| Group Lists | Read-only | View contact membership. |
+| APRS | **Editable** | GPS message, destination, callsign, SSID, paths, comment. Field length limits enforced. |
+| Roaming | Read-only | View roaming channels and zones. |
+| Settings | Read-only | File header info + hex dump of settings block. |
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## Tech Stack
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+- **React 19** + **TypeScript 5.9** + **Vite 7**
+- **Tailwind CSS 4** (zinc-neutral dark theme, Inter font)
+- Zero runtime dependencies beyond React
+- Custom binary parser/writer for the RDT format (~1,400 lines)
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+## Development
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
+npm run dev        # Dev server with HMR
+npm run build      # Production build
+npm run preview    # Preview production build
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### Round-trip test
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+Verifies that parsing and re-serializing an RDT file produces byte-identical output:
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npx tsx test-roundtrip.ts
 ```
+
+### Deploy to GitHub Pages
+
+```bash
+bash deploy.sh
+```
+
+Builds, switches to `gh-pages` branch, copies `dist/`, commits, and pushes. Returns to `master` when done.
+
+## Project Structure
+
+```
+src/
+├── App.tsx                        Main app shell, section routing, keyboard shortcuts
+├── index.css                      Tailwind theme tokens (colors, shadows, fonts)
+├── main.tsx                       React entry point
+├── components/
+│   ├── AppShell.tsx               Sidebar navigation + main content layout
+│   ├── FileToolbar.tsx            Top bar (open/save/undo/redo/export)
+│   ├── ChannelTable.tsx           Sortable/filterable channel editor
+│   ├── ZoneEditor.tsx             Zone list + channel assignment
+│   ├── ContactTable.tsx           Radio IDs + DTMF contacts
+│   ├── DigitalContactEditor.tsx   DMR contacts (call type + ID)
+│   ├── TextMessageEditor.tsx      Text message editor
+│   ├── ScanListEditor.tsx         Scan list viewer
+│   ├── GroupListViewer.tsx        Group list viewer
+│   ├── AprsEditor.tsx             APRS settings form
+│   ├── RoamingViewer.tsx          Roaming channels/zones viewer
+│   └── SettingsViewer.tsx         File header + settings hex dump
+├── hooks/
+│   └── useCodeplug.ts             State management (load, save, undo/redo, edit, validate)
+└── lib/
+    ├── types.ts                   TypeScript interfaces
+    ├── rdt-parser.ts              Binary RDT file parser
+    ├── rdt-writer.ts              Binary RDT file writer
+    ├── validator.ts               Codeplug validation
+    └── csv.ts                     Channel CSV export
+```
+
+## Roadmap
+
+### Phase 2 — Full Editing
+
+- [ ] Add new channels (not just edit/duplicate existing)
+- [ ] Scan list editing (add/remove/reorder channels)
+- [ ] Group list editing (add/remove contacts)
+- [ ] DTMF contact editing
+- [ ] Roaming channel/zone editing
+- [ ] Settings editing (power-on message, display settings, key assignments, etc.)
+- [ ] Digital contact name decoding (proprietary encoding — needs reverse engineering)
+
+### Phase 3 — Power Features
+
+- [ ] Multi-file merge (combine channels/zones from multiple codeplugs)
+- [ ] Import from CSV (roundtrip with export)
+- [ ] Repeater database lookup (auto-fill frequencies from RepeaterBook)
+- [ ] Codeplug diff (compare two `.RDT` files side by side)
+- [ ] Bulk edit (apply changes to multiple selected channels at once)
+
+### Phase 4 — Multi-Radio
+
+- [ ] D878UV / D878UV Plus support
+- [ ] D578UV Pro support
+- [ ] AT-D878UV II Plus support
+
+## License
+
+MIT
