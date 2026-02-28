@@ -1,13 +1,48 @@
 import { useState } from 'react';
 import type { GroupList, DigitalContact } from '../lib/types';
 
+function EditableName({ value, onCommit, maxLen = 16 }: { value: string; onCommit: (val: string) => void; maxLen?: number }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+
+  if (!editing) {
+    return (
+      <span
+        className="cursor-pointer hover:bg-surface-lighter px-1.5 py-0.5 rounded-md"
+        onClick={() => { setDraft(value); setEditing(true); }}
+        title="Click to rename"
+      >
+        {value}
+      </span>
+    );
+  }
+
+  return (
+    <input
+      autoFocus
+      type="text"
+      value={draft}
+      maxLength={maxLen}
+      onChange={e => setDraft(e.target.value)}
+      onBlur={() => { onCommit(draft); setEditing(false); }}
+      onKeyDown={e => {
+        if (e.key === 'Enter') { onCommit(draft); setEditing(false); }
+        if (e.key === 'Escape') setEditing(false);
+      }}
+      className="bg-surface-lighter text-text text-sm px-1.5 py-0.5 rounded-md border border-border outline-none"
+    />
+  );
+}
+
 interface Props {
   groupLists: GroupList[];
   digitalContacts: DigitalContact[];
   onUpdateGroupList: (index: number, changes: Partial<GroupList>) => void;
+  onAddGroupList: () => number;
+  onDeleteGroupList: (index: number) => void;
 }
 
-export function GroupListEditor({ groupLists, digitalContacts, onUpdateGroupList }: Props) {
+export function GroupListEditor({ groupLists, digitalContacts, onUpdateGroupList, onAddGroupList, onDeleteGroupList }: Props) {
   const [selected, setSelected] = useState<number | null>(
     groupLists.length > 0 ? groupLists[0].index : null
   );
@@ -33,11 +68,27 @@ export function GroupListEditor({ groupLists, digitalContacts, onUpdateGroupList
     });
   };
 
+  const renameGroupList = (index: number, val: string) => {
+    const n = val.slice(0, 16);
+    onUpdateGroupList(index, { name: n, _nameLen: n.length });
+  };
+
   return (
     <div className="flex gap-4 h-full">
       {/* Group list selection */}
       <div className="w-56 shrink-0 space-y-1">
-        <h3 className="text-sm font-medium text-text-muted mb-3">Group Lists</h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-medium text-text-muted">Group Lists</h3>
+          <button
+            onClick={() => {
+              const idx = onAddGroupList();
+              setSelected(idx);
+            }}
+            className="text-xs px-2 py-1 rounded-md bg-accent-green/15 text-accent-green hover:bg-accent-green/25 transition-colors"
+          >
+            + Add
+          </button>
+        </div>
         {groupLists.map(gl => (
           <button
             key={gl.index}
@@ -52,7 +103,10 @@ export function GroupListEditor({ groupLists, digitalContacts, onUpdateGroupList
               {selected === gl.index && (
                 <div className="w-0.5 h-4 bg-primary rounded-full shrink-0" />
               )}
-              <span>{gl.name || `Group List ${gl.index + 1}`}</span>
+              <EditableName
+                value={gl.name || `Group List ${gl.index + 1}`}
+                onCommit={val => renameGroupList(gl.index, val)}
+              />
             </div>
             <span className="text-xs text-text-dimmed">{gl.contactIndices.length}</span>
           </button>
@@ -67,9 +121,25 @@ export function GroupListEditor({ groupLists, digitalContacts, onUpdateGroupList
         <div className="flex-1 flex gap-4">
           {/* Assigned contacts */}
           <div className="flex-1 space-y-2">
-            <h3 className="text-sm font-medium text-text-muted">
-              {groupList.name} — {groupList.contactIndices.length} contacts
-            </h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-medium text-text-muted flex items-center gap-1">
+                <EditableName
+                  value={groupList.name}
+                  onCommit={val => renameGroupList(groupList.index, val)}
+                />
+                <span>— {groupList.contactIndices.length} contacts</span>
+              </h3>
+              <button
+                onClick={() => {
+                  onDeleteGroupList(groupList.index);
+                  const remaining = groupLists.filter(gl => gl.index !== groupList.index);
+                  setSelected(remaining.length > 0 ? remaining[0].index : null);
+                }}
+                className="text-xs px-2 py-1 rounded-md bg-accent-red/10 text-accent-red/70 hover:bg-accent-red/20 hover:text-accent-red transition-colors"
+              >
+                Delete
+              </button>
+            </div>
             <div className="overflow-auto rounded-xl border border-border max-h-[calc(100vh-200px)]" style={{ boxShadow: 'var(--shadow-sm)' }}>
               {groupList.contactIndices.map((cIdx, pos) => {
                 const contact = digitalContacts.find(dc => dc.index === cIdx);

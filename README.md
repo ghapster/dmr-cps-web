@@ -24,7 +24,7 @@ A browser-based codeplug editor for the **Anytone D578UV** DMR radio. Open, edit
 | Digital Contacts | **Editable** | Edit DMR ID and Call Type (group/private). Names use proprietary encoding — not yet decoded. |
 | Scan Lists | **Editable** | Add/delete scan lists, add/remove/reorder channels within scan lists. |
 | Text Messages | **Editable** | Edit message text (144 char max). |
-| Group Lists | **Editable** | Add/remove contacts within group lists. |
+| Group Lists | **Editable** | Add/delete/rename group lists, add/remove contacts within group lists. |
 | APRS | **Editable** | GPS message, destination, callsign, SSID, paths, comment. Field length limits enforced. |
 | Roaming | **Editable** | Edit roaming channel and zone names (length capped at original). |
 | Settings | Read-only | File header info + hex dump of settings block. |

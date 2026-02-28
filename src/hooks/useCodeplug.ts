@@ -183,6 +183,20 @@ export function useCodeplug() {
     }));
   }, [updateCodeplug]);
 
+  const addGroupList = useCallback((groupList: GroupList) => {
+    updateCodeplug(cp => ({
+      ...cp,
+      groupLists: [...cp.groupLists, groupList],
+    }));
+  }, [updateCodeplug]);
+
+  const deleteGroupList = useCallback((index: number) => {
+    updateCodeplug(cp => ({
+      ...cp,
+      groupLists: cp.groupLists.filter(gl => gl.index !== index),
+    }));
+  }, [updateCodeplug]);
+
   const updateGroupList = useCallback((index: number, changes: Partial<GroupList>) => {
     updateCodeplug(cp => ({
       ...cp,
@@ -256,6 +270,8 @@ export function useCodeplug() {
     addScanList,
     deleteScanList,
     updateScanList,
+    addGroupList,
+    deleteGroupList,
     updateGroupList,
     updateAnalogContact,
     updateRoamingChannel,

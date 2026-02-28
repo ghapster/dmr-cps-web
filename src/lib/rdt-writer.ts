@@ -4,6 +4,7 @@ import type {
   RadioId,
   Zone,
   ScanList,
+  GroupList,
   AnalogContact,
   AprsSettings,
   RepeaterMode,
@@ -234,6 +235,44 @@ export function createDefaultScanList(scanLists: ScanList[]): ScanList {
 
   sl._raw = serializeScanList(sl);
   return sl;
+}
+
+// ---------------------------------------------------------------------------
+// Create default group list
+// ---------------------------------------------------------------------------
+
+/**
+ * Creates a new default group list with no contacts assigned.
+ */
+export function createDefaultGroupList(groupLists: GroupList[]): GroupList {
+  const newIndex = groupLists.length > 0
+    ? Math.max(...groupLists.map(gl => gl.index), 0) + 1
+    : 0;
+
+  const newName = 'New Group List';
+  const settings = groupLists.length > 0
+    ? new Uint8Array(groupLists[0]._settings)
+    : new Uint8Array(8);
+  const entryHeader = groupLists.length > 0
+    ? new Uint8Array(groupLists[0]._entryHeader)
+    : new Uint8Array(4);
+  // Reset entry count in header to 0
+  entryHeader[3] = 0;
+
+  const nameTotalBytes = nameFieldSize(newName.length);
+  const recordSize = 8 + nameTotalBytes + 4;
+  const _raw = new Uint8Array(recordSize);
+
+  return {
+    index: newIndex,
+    name: newName,
+    contactIndices: [],
+    _raw,
+    _nameLen: newName.length,
+    _settings: settings,
+    _entryHeader: entryHeader,
+    _entryExtras: [],
+  };
 }
 
 // ---------------------------------------------------------------------------

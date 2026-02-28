@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { ActiveSection } from './lib/types';
-import { createDefaultChannel, createDefaultZone, createDefaultScanList } from './lib/rdt-writer';
+import { createDefaultChannel, createDefaultZone, createDefaultScanList, createDefaultGroupList } from './lib/rdt-writer';
 import { useCodeplug } from './hooks/useCodeplug';
 import { FileToolbar } from './components/FileToolbar';
 import { AppShell } from './components/AppShell';
@@ -22,7 +22,8 @@ function App() {
     updateChannel, deleteChannels, addChannel, duplicateChannel,
     addZone, deleteZone, updateZone, updateRadioId, updateTextMessage,
     updateDigitalContact, updateAprsSettings,
-    addScanList, deleteScanList, updateScanList, updateGroupList,
+    addScanList, deleteScanList, updateScanList,
+    addGroupList, deleteGroupList, updateGroupList,
     updateAnalogContact, updateRoamingChannel, updateRoamingZone,
     undo, redo, canUndo, canRedo,
   } = useCodeplug();
@@ -167,6 +168,8 @@ function App() {
             groupLists={codeplug.groupLists}
             digitalContacts={codeplug.digitalContacts}
             onUpdateGroupList={updateGroupList}
+            onAddGroupList={() => { const gl = createDefaultGroupList(codeplug.groupLists); addGroupList(gl); return gl.index; }}
+            onDeleteGroupList={deleteGroupList}
           />
         );
       case 'aprs':
