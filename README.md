@@ -10,24 +10,50 @@ A browser-based codeplug editor for the **Anytone D578UV** DMR radio. Open, edit
 - **Round-trip safe** — binary-identical save (unmodified fields preserved byte-for-byte)
 - **Undo/Redo** with Ctrl+Z / Ctrl+Y (50-level stack)
 - **Keyboard shortcuts** — Ctrl+S to save
-- **Validation** — frequency band checks, duplicate warnings, reference integrity
+- **Validation** — frequency band checks, duplicate warnings, reference integrity, clickable issue list with section navigation
 - **CSV export** of channel data
+- **Toast notifications** on all add/delete/save/export actions
+- **Confirm dialogs** on all destructive delete actions
+- **Drag-to-reorder** channels in zones, scan lists, and contacts in group lists
+- **Repeater lookup** — search radioid.net for DMR repeaters and batch-import as channels
 
 ## Sections
 
 | Section | Status | Notes |
 |---------|--------|-------|
-| Channels | **Editable** | Inline editing (name, RX/TX freq, mode, power, CC, TS). Sort, filter by mode/search, multi-select delete, add new, duplicate. |
-| Zones | **Editable** | Add/delete zones, add/remove/reorder channels within zones. |
-| Radio IDs | **Editable** | Add/delete radio IDs, edit DMR ID and name. |
-| DTMF Contacts | **Editable** | Add/delete contacts, edit DTMF code and name. |
+| Channels | **Editable** | Inline editing (name, RX/TX freq, mode, power, CC, TS). Sort, filter by mode/search, multi-select delete, add new, duplicate. Repeater lookup + batch import. |
+| Zones | **Editable** | Add/delete zones, drag-to-reorder channels within zones. Confirm on delete. |
+| Radio IDs | **Editable** | Add/delete radio IDs, edit DMR ID and name. Confirm on delete. |
+| DTMF Contacts | **Editable** | Add/delete contacts, edit DTMF code and name. Confirm on delete. |
 | Digital Contacts | **Editable** | Edit DMR ID and Call Type (group/private). Names use proprietary encoding — not yet decoded. |
-| Scan Lists | **Editable** | Add/delete scan lists, add/remove/reorder channels within scan lists. |
+| Scan Lists | **Editable** | Add/delete scan lists, drag-to-reorder channels within scan lists. Confirm on delete. |
 | Text Messages | **Editable** | Add/delete messages, edit message text (144 char max). |
-| Group Lists | **Editable** | Add/delete/rename group lists, add/remove contacts within group lists. |
+| Group Lists | **Editable** | Add/delete/rename group lists, drag-to-reorder contacts within group lists. Confirm on delete. |
 | APRS | **Editable** | GPS message, destination, callsign, SSID, paths, comment. Field length limits enforced. |
-| Roaming | **Editable** | Add/delete roaming channels and zones, edit names. |
+| Roaming | **Editable** | Add/delete roaming channels and zones, edit names. Confirm on delete. |
 | Settings | Read-only | File header info + hex dump of settings block. |
+
+## Validation Rules
+
+| Rule | Severity | Section |
+|------|----------|---------|
+| Duplicate RX frequencies | Warning | Channels |
+| Duplicate TX frequencies | Warning | Channels |
+| Duplicate channel names | Warning | Channels |
+| Zero RX or TX frequency | Warning | Channels |
+| RX/TX frequency outside known bands (VHF/220/UHF/900) | Warning | Channels |
+| Invalid color code (not 0-15) | Error | Channels |
+| Invalid time slot (not 1 or 2) | Error | Channels |
+| Analog channel with DMR-specific settings | Warning | Channels |
+| Empty channel name | Warning | Channels |
+| Empty zones (no channels) | Warning | Zones |
+| Orphaned zone channel references | Error | Zones |
+| Empty scan lists (no channels) | Warning | Scan Lists |
+| Orphaned scan list channel references | Error | Scan Lists |
+| Empty group lists (no contacts) | Warning | Group Lists |
+| Orphaned group list contact references | Error | Group Lists |
+| Orphaned roaming zone channel references | Error | Roaming |
+| DMR ID 0 or exceeding 24-bit max | Warning | Radio IDs |
 
 ## Tech Stack
 
@@ -67,55 +93,59 @@ Builds, switches to `gh-pages` branch, copies `dist/`, commits, and pushes. Retu
 src/
 ├── App.tsx                        Main app shell, section routing, keyboard shortcuts
 ├── index.css                      Tailwind theme tokens (colors, shadows, fonts)
-├── main.tsx                       React entry point
+├── main.tsx                       React entry point (wraps App in ToastProvider)
 ├── components/
-│   ├── AppShell.tsx               Sidebar navigation + main content layout
+│   ├── AppShell.tsx               Sidebar navigation + clickable validation list
 │   ├── FileToolbar.tsx            Top bar (open/save/undo/redo/export)
-│   ├── ChannelTable.tsx           Sortable/filterable channel editor
-│   ├── ZoneEditor.tsx             Zone list + channel assignment
-│   ├── ContactTable.tsx           Radio IDs + DTMF contacts
+│   ├── ChannelTable.tsx           Sortable/filterable channel editor + repeater lookup
+│   ├── ZoneEditor.tsx             Zone list + drag-to-reorder channel assignment
+│   ├── ContactTable.tsx           Radio IDs + DTMF contacts with confirm dialogs
 │   ├── DigitalContactEditor.tsx   DMR contacts (call type + ID)
 │   ├── TextMessageEditor.tsx      Text message editor
-│   ├── ScanListEditor.tsx         Scan list editor (add/remove/reorder channels)
-│   ├── GroupListEditor.tsx        Group list editor (add/remove contacts)
+│   ├── ScanListEditor.tsx         Scan list editor (drag-to-reorder channels)
+│   ├── GroupListEditor.tsx        Group list editor (drag-to-reorder contacts)
 │   ├── AprsEditor.tsx             APRS settings form
-│   ├── RoamingEditor.tsx          Roaming channels/zones editor
+│   ├── RoamingEditor.tsx          Roaming channels/zones editor with confirm dialogs
+│   ├── ConfirmDialog.tsx          Reusable confirmation modal
+│   ├── Toast.tsx                  Toast notification context/provider
+│   ├── RepeaterLookup.tsx         Repeater database search modal (radioid.net API)
 │   └── SettingsViewer.tsx         File header + settings hex dump
 ├── hooks/
-│   └── useCodeplug.ts             State management (load, save, undo/redo, edit, validate)
+│   └── useCodeplug.ts             State management (load, save, undo/redo, edit, validate, import)
 └── lib/
     ├── types.ts                   TypeScript interfaces
     ├── rdt-parser.ts              Binary RDT file parser
     ├── rdt-writer.ts              Binary RDT file writer
-    ├── validator.ts               Codeplug validation
+    ├── validator.ts               Codeplug validation (18 rules)
     └── csv.ts                     Channel CSV export
 ```
 
+## Version History
+
+| Version | Changes |
+|---------|---------|
+| V1.5 | RepeaterBook lookup + batch import, confirm dialogs on all deletes, toast notifications, drag-to-reorder in zones/scan lists/group lists, expanded validation (18 rules), clickable validation list |
+| V1.4 | Add/delete for radio IDs, DTMF contacts, text messages, roaming |
+| V1.3 | Add/delete/rename group lists |
+| V1.2 | Click-to-edit names for zones and scan lists |
+| V1.1 | Add/delete zones and scan lists |
+| V1.0 | Initial release — binary RDT parse/write, channel editing, CSV export |
+
 ## Roadmap
 
-### Phase 2 — Full Editing
+### Next Up
 
-- [x] Add new channels (not just edit/duplicate existing)
-- [x] Scan list editing (add/remove/reorder channels)
-- [x] Group list editing (add/remove contacts)
-- [x] DTMF contact editing
-- [x] Roaming channel/zone editing
 - [ ] Settings editing (power-on message, display settings, key assignments, etc.)
 - [ ] Digital contact name decoding (proprietary encoding — needs reverse engineering)
+- [ ] CORS proxy or fallback for repeater lookup (radioid.net may block direct browser requests)
 
-### Phase 3 — Power Features
+### Future
 
 - [ ] Multi-file merge (combine channels/zones from multiple codeplugs)
 - [ ] Import from CSV (roundtrip with export)
-- [ ] Repeater database lookup (auto-fill frequencies from RepeaterBook)
 - [ ] Codeplug diff (compare two `.RDT` files side by side)
 - [ ] Bulk edit (apply changes to multiple selected channels at once)
-
-### Phase 4 — Multi-Radio
-
-- [ ] D878UV / D878UV Plus support
-- [ ] D578UV Pro support
-- [ ] AT-D878UV II Plus support
+- [ ] D878UV / D878UV Plus / D578UV Pro / AT-D878UV II Plus support
 
 ## License
 
