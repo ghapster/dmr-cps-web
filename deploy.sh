@@ -42,7 +42,7 @@ cp -r dist/* "$TMPDIR/"
 echo -e "${GREEN}Build complete${NC}"
 
 # Extract version from the built HTML
-VERSION=$(grep -oP 'V\d+\.\d+' "$TMPDIR/index.html" | head -1 || echo "unknown")
+VERSION=$(grep -oE 'V[0-9]+\.[0-9]+' "$TMPDIR/index.html" | head -1 || echo "unknown")
 echo -e "${CYAN}Version: ${VERSION}${NC}"
 
 echo -e "${CYAN}Switching to gh-pages...${NC}"
