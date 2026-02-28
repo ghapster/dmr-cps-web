@@ -1,4 +1,7 @@
+import { useState } from 'react';
 import type { RoamingChannel, RoamingZone } from '../lib/types';
+import { ConfirmDialog } from './ConfirmDialog';
+import { useToast } from './Toast';
 
 interface Props {
   roamingChannels: RoamingChannel[];
@@ -17,6 +20,10 @@ export function RoamingEditor({
   onAddRoamingChannel, onDeleteRoamingChannel,
   onAddRoamingZone, onDeleteRoamingZone,
 }: Props) {
+  const toast = useToast();
+  const [confirmDeleteCh, setConfirmDeleteCh] = useState<number | null>(null);
+  const [confirmDeleteZone, setConfirmDeleteZone] = useState<number | null>(null);
+
   return (
     <div className="space-y-6">
       {/* Roaming Channels */}
@@ -26,7 +33,7 @@ export function RoamingEditor({
             Roaming Channels — {roamingChannels.length}
           </h3>
           <button
-            onClick={onAddRoamingChannel}
+            onClick={() => { onAddRoamingChannel(); toast('Roaming channel added'); }}
             className="text-xs px-2 py-1 rounded-md bg-accent-green/15 text-accent-green hover:bg-accent-green/25 transition-colors"
           >
             + Add
@@ -57,7 +64,7 @@ export function RoamingEditor({
                   <td className="px-4 py-2 text-text-dimmed font-mono text-xs">{rc._raw.byteLength} bytes</td>
                   <td className="px-4 py-2 text-right">
                     <button
-                      onClick={() => onDeleteRoamingChannel(rc.index)}
+                      onClick={() => setConfirmDeleteCh(rc.index)}
                       className="text-accent-red/70 hover:text-accent-red px-1 py-0.5 rounded hover:bg-accent-red/10"
                     >
                       &times;
@@ -84,7 +91,7 @@ export function RoamingEditor({
             Roaming Zones — {roamingZones.length}
           </h3>
           <button
-            onClick={onAddRoamingZone}
+            onClick={() => { onAddRoamingZone(); toast('Roaming zone added'); }}
             className="text-xs px-2 py-1 rounded-md bg-accent-green/15 text-accent-green hover:bg-accent-green/25 transition-colors"
           >
             + Add
@@ -117,7 +124,7 @@ export function RoamingEditor({
                   </td>
                   <td className="px-4 py-2 text-right">
                     <button
-                      onClick={() => onDeleteRoamingZone(rz.index)}
+                      onClick={() => setConfirmDeleteZone(rz.index)}
                       className="text-accent-red/70 hover:text-accent-red px-1 py-0.5 rounded hover:bg-accent-red/10"
                     >
                       &times;
@@ -136,6 +143,34 @@ export function RoamingEditor({
           </table>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={confirmDeleteCh !== null}
+        title="Delete Roaming Channel"
+        message={`Are you sure you want to delete roaming channel "${roamingChannels.find(rc => rc.index === confirmDeleteCh)?.name ?? ''}"?`}
+        onCancel={() => setConfirmDeleteCh(null)}
+        onConfirm={() => {
+          if (confirmDeleteCh !== null) {
+            onDeleteRoamingChannel(confirmDeleteCh);
+            toast('Roaming channel deleted');
+          }
+          setConfirmDeleteCh(null);
+        }}
+      />
+
+      <ConfirmDialog
+        open={confirmDeleteZone !== null}
+        title="Delete Roaming Zone"
+        message={`Are you sure you want to delete roaming zone "${roamingZones.find(rz => rz.index === confirmDeleteZone)?.name ?? ''}"?`}
+        onCancel={() => setConfirmDeleteZone(null)}
+        onConfirm={() => {
+          if (confirmDeleteZone !== null) {
+            onDeleteRoamingZone(confirmDeleteZone);
+            toast('Roaming zone deleted');
+          }
+          setConfirmDeleteZone(null);
+        }}
+      />
     </div>
   );
 }

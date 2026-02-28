@@ -11,6 +11,8 @@ export function validateCodeplug(codeplug: Codeplug): ValidationIssue[] {
   validateZones(codeplug.zones, codeplug.channels, issues);
   validateScanLists(codeplug.scanLists, codeplug.channels, issues);
   validateRadioIds(codeplug.radioIds, issues);
+  validateGroupLists(codeplug.groupLists, codeplug.digitalContacts, issues);
+  validateRoamingZones(codeplug.roamingZones, codeplug.roamingChannels, issues);
 
   // Sort: errors first, then warnings, then info
   const severityOrder: Record<string, number> = { error: 0, warning: 1, info: 2 };
@@ -41,17 +43,17 @@ function isInKnownBand(freq: number): boolean {
 // ─── Channel validation ─────────────────────────────────────────────────────
 
 function validateChannels(channels: Channel[], issues: ValidationIssue[]): void {
-  // Rule 1: Duplicate RX frequencies
-  const freqMap = new Map<number, number[]>();
+  // Rule: Duplicate RX frequencies
+  const rxFreqMap = new Map<number, number[]>();
   for (const ch of channels) {
-    const existing = freqMap.get(ch.rxFrequency);
+    const existing = rxFreqMap.get(ch.rxFrequency);
     if (existing) {
       existing.push(ch.index);
     } else {
-      freqMap.set(ch.rxFrequency, [ch.index]);
+      rxFreqMap.set(ch.rxFrequency, [ch.index]);
     }
   }
-  for (const [freq, indices] of freqMap) {
+  for (const [freq, indices] of rxFreqMap) {
     if (indices.length > 1) {
       issues.push({
         severity: 'warning',
@@ -61,8 +63,45 @@ function validateChannels(channels: Channel[], issues: ValidationIssue[]): void 
     }
   }
 
+  // Rule: Duplicate channel names
+  const nameMap = new Map<string, number[]>();
   for (const ch of channels) {
-    // Rule 8: Empty channel name
+    if (!ch.name || ch.name.trim() === '') continue;
+    const key = ch.name.trim().toLowerCase();
+    const existing = nameMap.get(key);
+    if (existing) existing.push(ch.index);
+    else nameMap.set(key, [ch.index]);
+  }
+  for (const [, indices] of nameMap) {
+    if (indices.length > 1) {
+      issues.push({
+        severity: 'warning',
+        message: `Duplicate channel name shared by channels: ${indices.join(', ')}`,
+        section: 'channel',
+      });
+    }
+  }
+
+  // Rule: Duplicate TX frequencies
+  const txFreqMap = new Map<number, number[]>();
+  for (const ch of channels) {
+    if (ch.txFrequency <= 0) continue;
+    const existing = txFreqMap.get(ch.txFrequency);
+    if (existing) existing.push(ch.index);
+    else txFreqMap.set(ch.txFrequency, [ch.index]);
+  }
+  for (const [freq, indices] of txFreqMap) {
+    if (indices.length > 1) {
+      issues.push({
+        severity: 'warning',
+        message: `Duplicate TX frequency ${freq.toFixed(4)} MHz shared by channels: ${indices.join(', ')}`,
+        section: 'channel',
+      });
+    }
+  }
+
+  for (const ch of channels) {
+    // Rule: Empty channel name
     if (!ch.name || ch.name.trim() === '') {
       issues.push({
         severity: 'warning',
@@ -72,7 +111,25 @@ function validateChannels(channels: Channel[], issues: ValidationIssue[]): void 
       });
     }
 
-    // Rule 4: Frequency band check
+    // Rule: Zero RX or TX frequency
+    if (ch.rxFrequency === 0) {
+      issues.push({
+        severity: 'warning',
+        message: `Channel ${ch.index} "${ch.name}" has RX frequency 0`,
+        section: 'channel',
+        index: ch.index,
+      });
+    }
+    if (ch.txFrequency === 0) {
+      issues.push({
+        severity: 'warning',
+        message: `Channel ${ch.index} "${ch.name}" has TX frequency 0`,
+        section: 'channel',
+        index: ch.index,
+      });
+    }
+
+    // Rule: Frequency band check (RX)
     if (ch.rxFrequency > 0 && !isInKnownBand(ch.rxFrequency)) {
       issues.push({
         severity: 'warning',
@@ -82,7 +139,17 @@ function validateChannels(channels: Channel[], issues: ValidationIssue[]): void 
       });
     }
 
-    // Rule 5: Color code range (0-15)
+    // Rule: TX frequency outside known bands
+    if (ch.txFrequency > 0 && !isInKnownBand(ch.txFrequency)) {
+      issues.push({
+        severity: 'warning',
+        message: `Channel ${ch.index} "${ch.name}" TX frequency ${ch.txFrequency.toFixed(4)} MHz is outside known bands`,
+        section: 'channel',
+        index: ch.index,
+      });
+    }
+
+    // Rule: Color code range (0-15)
     if (ch.colorCode < 0 || ch.colorCode > 15) {
       issues.push({
         severity: 'error',
@@ -92,7 +159,7 @@ function validateChannels(channels: Channel[], issues: ValidationIssue[]): void 
       });
     }
 
-    // Rule 6: Time slot validation (must be 1 or 2)
+    // Rule: Time slot validation (must be 1 or 2)
     if (ch.timeSlot !== 1 && ch.timeSlot !== 2) {
       issues.push({
         severity: 'error',
@@ -102,7 +169,7 @@ function validateChannels(channels: Channel[], issues: ValidationIssue[]): void 
       });
     }
 
-    // Rule 7: Analog channel with DMR-specific settings
+    // Rule: Analog channel with DMR-specific settings
     if (ch.mode === 'analog') {
       if (ch.colorCode !== 0) {
         issues.push({
@@ -134,7 +201,7 @@ function validateZones(
   const validChannelIndices = new Set(channels.map((ch) => ch.index));
 
   for (const zone of zones) {
-    // Rule 10: Empty zones
+    // Rule: Empty zones
     if (zone.channelIndices.length === 0) {
       issues.push({
         severity: 'warning',
@@ -144,7 +211,7 @@ function validateZones(
       });
     }
 
-    // Rule 2: Orphaned zone channel references
+    // Rule: Orphaned zone channel references
     for (const chIdx of zone.channelIndices) {
       if (!validChannelIndices.has(chIdx)) {
         issues.push({
@@ -168,7 +235,17 @@ function validateScanLists(
   const validChannelIndices = new Set(channels.map((ch) => ch.index));
 
   for (const sl of scanLists) {
-    // Rule 3: Orphaned scan list channel references
+    // Rule: Empty scan lists
+    if (sl.channelIndices.length === 0) {
+      issues.push({
+        severity: 'warning',
+        message: `Scan list ${sl.index} "${sl.name}" contains no channels`,
+        section: 'scanList',
+        index: sl.index,
+      });
+    }
+
+    // Rule: Orphaned scan list channel references
     for (const chIdx of sl.channelIndices) {
       if (!validChannelIndices.has(chIdx)) {
         issues.push({
@@ -189,7 +266,6 @@ function validateRadioIds(
   issues: ValidationIssue[],
 ): void {
   for (const rid of radioIds) {
-    // Rule 9: DMR ID range (24-bit: valid 1 - 16776415, warn on 0 or out of range)
     if (rid.dmrId === 0) {
       issues.push({
         severity: 'warning',
@@ -204,6 +280,63 @@ function validateRadioIds(
         section: 'general',
         index: rid.index,
       });
+    }
+  }
+}
+
+// ─── Group list validation ──────────────────────────────────────────────────
+
+function validateGroupLists(
+  groupLists: import('./types').GroupList[],
+  digitalContacts: import('./types').DigitalContact[],
+  issues: ValidationIssue[],
+): void {
+  const validContactIndices = new Set(digitalContacts.map((dc) => dc.index));
+
+  for (const gl of groupLists) {
+    // Rule: Empty group lists
+    if (gl.contactIndices.length === 0) {
+      issues.push({
+        severity: 'warning',
+        message: `Group list ${gl.index} "${gl.name}" contains no contacts`,
+        section: 'groupList',
+        index: gl.index,
+      });
+    }
+
+    // Rule: Orphaned contact references
+    for (const cIdx of gl.contactIndices) {
+      if (!validContactIndices.has(cIdx)) {
+        issues.push({
+          severity: 'error',
+          message: `Group list ${gl.index} "${gl.name}" references digital contact index ${cIdx} which does not exist`,
+          section: 'groupList',
+          index: gl.index,
+        });
+      }
+    }
+  }
+}
+
+// ─── Roaming zone validation ────────────────────────────────────────────────
+
+function validateRoamingZones(
+  roamingZones: import('./types').RoamingZone[],
+  roamingChannels: import('./types').RoamingChannel[],
+  issues: ValidationIssue[],
+): void {
+  const validChannelIndices = new Set(roamingChannels.map((rc) => rc.index));
+
+  for (const rz of roamingZones) {
+    for (const chIdx of rz.channelIndices) {
+      if (!validChannelIndices.has(chIdx)) {
+        issues.push({
+          severity: 'error',
+          message: `Roaming zone ${rz.index} "${rz.name}" references roaming channel index ${chIdx} which does not exist`,
+          section: 'roaming',
+          index: rz.index,
+        });
+      }
     }
   }
 }

@@ -6,6 +6,7 @@ import {
   createDefaultRoamingChannel, createDefaultRoamingZone,
 } from './lib/rdt-writer';
 import { useCodeplug } from './hooks/useCodeplug';
+import { useToast } from './components/Toast';
 import { FileToolbar } from './components/FileToolbar';
 import { AppShell } from './components/AppShell';
 import { ChannelTable } from './components/ChannelTable';
@@ -20,6 +21,7 @@ import { AprsEditor } from './components/AprsEditor';
 import { RoamingEditor } from './components/RoamingEditor';
 
 function App() {
+  const toast = useToast();
   const {
     codeplug, fileName, dirty, issues,
     openFile, saveFile, exportCsv,
@@ -33,6 +35,7 @@ function App() {
     addAnalogContact, deleteAnalogContact, updateAnalogContact,
     addRoamingChannel, deleteRoamingChannel, updateRoamingChannel,
     addRoamingZone, deleteRoamingZone, updateRoamingZone,
+    importChannels,
     undo, redo, canUndo, canRedo,
   } = useCodeplug();
 
@@ -43,21 +46,32 @@ function App() {
     try {
       setError(null);
       await openFile(file);
+      toast(`Opened ${file.name}`, 'info');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to parse file');
     }
-  }, [openFile]);
+  }, [openFile, toast]);
+
+  const handleSave = useCallback(() => {
+    saveFile();
+    toast('File saved');
+  }, [saveFile, toast]);
+
+  const handleExportCsv = useCallback(() => {
+    exportCsv();
+    toast('CSV exported');
+  }, [exportCsv, toast]);
 
   // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
       if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) { e.preventDefault(); redo(); }
-      if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveFile(); }
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); handleSave(); }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [undo, redo, saveFile]);
+  }, [undo, redo, handleSave]);
 
   // Drag-and-drop on the whole page
   useEffect(() => {
@@ -117,6 +131,7 @@ function App() {
             onDeleteChannels={deleteChannels}
             onDuplicateChannel={duplicateChannel}
             onAddChannel={() => { const ch = createDefaultChannel(codeplug.channels); addChannel(ch); return ch.index; }}
+            onImportChannels={importChannels}
           />
         );
       case 'zones':
@@ -223,8 +238,8 @@ function App() {
         dirty={dirty}
         hasCodeplug={codeplug !== null}
         onOpen={handleOpen}
-        onSave={saveFile}
-        onExportCsv={exportCsv}
+        onSave={handleSave}
+        onExportCsv={handleExportCsv}
         onUndo={undo}
         onRedo={redo}
         canUndo={canUndo}

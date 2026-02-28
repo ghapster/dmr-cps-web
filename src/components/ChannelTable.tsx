@@ -1,5 +1,8 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import type { Channel, ChannelMode } from '../lib/types';
+import { ConfirmDialog } from './ConfirmDialog';
+import { useToast } from './Toast';
+import { RepeaterLookup } from './RepeaterLookup';
 
 type SortKey = 'index' | 'name' | 'rxFrequency' | 'txFrequency' | 'mode' | 'power' | 'colorCode' | 'timeSlot';
 type SortDir = 'asc' | 'desc';
@@ -10,6 +13,7 @@ interface Props {
   onDeleteChannels: (indices: number[]) => void;
   onDuplicateChannel: (index: number) => void;
   onAddChannel: () => number; // returns the new channel's index
+  onImportChannels?: (partials: Partial<Channel>[]) => void;
 }
 
 function EditableCell({ value, onCommit, type = 'text', options, autoEdit = false }: {
@@ -71,7 +75,8 @@ function EditableCell({ value, onCommit, type = 'text', options, autoEdit = fals
   );
 }
 
-export function ChannelTable({ channels, onUpdateChannel, onDeleteChannels, onDuplicateChannel, onAddChannel }: Props) {
+export function ChannelTable({ channels, onUpdateChannel, onDeleteChannels, onDuplicateChannel, onAddChannel, onImportChannels }: Props) {
+  const toast = useToast();
   const [sortKey, setSortKey] = useState<SortKey>('index');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [filter, setFilter] = useState('');
@@ -79,6 +84,8 @@ export function ChannelTable({ channels, onUpdateChannel, onDeleteChannels, onDu
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [highlightIndex, setHighlightIndex] = useState<number | null>(null);
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+  const [showRepeaterLookup, setShowRepeaterLookup] = useState(false);
 
   // Scroll into view when a row is highlighted
   const highlightRef = useCallback((el: HTMLTableRowElement | null) => {
@@ -94,13 +101,13 @@ export function ChannelTable({ channels, onUpdateChannel, onDeleteChannels, onDu
   }, [highlightIndex]);
 
   const handleAddChannel = () => {
-    // Clear filters and sort descending so the new channel appears at the top
     setFilter('');
     setModeFilter('all');
     setSortKey('index');
     setSortDir('desc');
     const newIndex = onAddChannel();
     setHighlightIndex(newIndex);
+    toast('Channel added');
   };
 
   const toggleSort = (key: SortKey) => {
@@ -190,11 +197,19 @@ export function ChannelTable({ channels, onUpdateChannel, onDeleteChannels, onDu
         >
           + Add Channel
         </button>
+        {onImportChannels && (
+          <button
+            onClick={() => setShowRepeaterLookup(true)}
+            className="px-4 py-1.5 text-sm bg-primary/20 text-primary-light hover:bg-primary/30 rounded-md transition-colors"
+          >
+            Repeater Lookup
+          </button>
+        )}
         <div className="flex-1" />
         <span className="text-xs text-text-dimmed">{sorted.length} of {channels.length} channels</span>
         {selected.size > 0 && (
           <button
-            onClick={() => { onDeleteChannels(Array.from(selected)); setSelected(new Set()); }}
+            onClick={() => setConfirmBulkDelete(true)}
             className="px-4 py-1.5 text-sm bg-accent-red/20 text-accent-red hover:bg-accent-red/30 rounded-md transition-colors"
           >
             Delete {selected.size}
@@ -346,6 +361,32 @@ export function ChannelTable({ channels, onUpdateChannel, onDeleteChannels, onDu
           </tbody>
         </table>
       </div>
+
+      <ConfirmDialog
+        open={confirmBulkDelete}
+        title="Delete Channels"
+        message={`Are you sure you want to delete ${selected.size} channel${selected.size > 1 ? 's' : ''}? This cannot be undone.`}
+        onCancel={() => setConfirmBulkDelete(false)}
+        onConfirm={() => {
+          const count = selected.size;
+          onDeleteChannels(Array.from(selected));
+          setSelected(new Set());
+          setConfirmBulkDelete(false);
+          toast(`${count} channel${count > 1 ? 's' : ''} deleted`);
+        }}
+      />
+
+      {showRepeaterLookup && onImportChannels && (
+        <RepeaterLookup
+          onClose={() => setShowRepeaterLookup(false)}
+          onImport={(partials: Partial<Channel>[]) => {
+            onImportChannels(partials);
+            setShowRepeaterLookup(false);
+            toast(`${partials.length} channel${partials.length > 1 ? 's' : ''} imported`);
+          }}
+        />
+      )}
     </div>
   );
 }
+

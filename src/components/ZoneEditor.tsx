@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import type { Zone, Channel } from '../lib/types';
+import { ConfirmDialog } from './ConfirmDialog';
+import { useToast } from './Toast';
 
 function EditableName({ value, onCommit, maxLen = 16 }: { value: string; onCommit: (val: string) => void; maxLen?: number }) {
   const [editing, setEditing] = useState(false);
@@ -43,9 +45,15 @@ interface Props {
 }
 
 export function ZoneEditor({ zones, channels, onUpdateZone, onAddZone, onDeleteZone }: Props) {
+  const toast = useToast();
   const [selectedZone, setSelectedZone] = useState<number | null>(
     zones.length > 0 ? zones[0].index : null
   );
+  const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
+
+  // Drag state
+  const dragIdx = useRef<number | null>(null);
+  const [dropIdx, setDropIdx] = useState<number | null>(null);
 
   const zone = zones.find(z => z.index === selectedZone);
   const channelMap = new Map(channels.map(ch => [ch.index, ch]));
@@ -67,13 +75,30 @@ export function ZoneEditor({ zones, channels, onUpdateZone, onAddZone, onDeleteZ
     });
   };
 
-  const moveChannel = (fromIdx: number, dir: -1 | 1) => {
-    if (!zone) return;
+  const handleDragStart = (pos: number) => {
+    dragIdx.current = pos;
+  };
+
+  const handleDragOver = (e: React.DragEvent, pos: number) => {
+    e.preventDefault();
+    setDropIdx(pos);
+  };
+
+  const handleDrop = (pos: number) => {
+    if (!zone || dragIdx.current === null) return;
+    const from = dragIdx.current;
+    if (from === pos) { dragIdx.current = null; setDropIdx(null); return; }
     const arr = [...zone.channelIndices];
-    const toIdx = fromIdx + dir;
-    if (toIdx < 0 || toIdx >= arr.length) return;
-    [arr[fromIdx], arr[toIdx]] = [arr[toIdx], arr[fromIdx]];
+    const [moved] = arr.splice(from, 1);
+    arr.splice(pos, 0, moved);
     onUpdateZone(zone.index, { channelIndices: arr });
+    dragIdx.current = null;
+    setDropIdx(null);
+  };
+
+  const handleDragEnd = () => {
+    dragIdx.current = null;
+    setDropIdx(null);
   };
 
   return (
@@ -86,6 +111,7 @@ export function ZoneEditor({ zones, channels, onUpdateZone, onAddZone, onDeleteZ
             onClick={() => {
               const idx = onAddZone();
               setSelectedZone(idx);
+              toast('Zone added');
             }}
             className="text-xs px-2 py-1 rounded-md bg-accent-green/15 text-accent-green hover:bg-accent-green/25 transition-colors"
           >
@@ -133,11 +159,7 @@ export function ZoneEditor({ zones, channels, onUpdateZone, onAddZone, onDeleteZ
                 <span>— {zone.channelIndices.length} channels</span>
               </h3>
               <button
-                onClick={() => {
-                  onDeleteZone(zone.index);
-                  const remaining = zones.filter(z => z.index !== zone.index);
-                  setSelectedZone(remaining.length > 0 ? remaining[0].index : null);
-                }}
+                onClick={() => setConfirmDelete(zone.index)}
                 className="text-xs px-2 py-1 rounded-md bg-accent-red/10 text-accent-red/70 hover:bg-accent-red/20 hover:text-accent-red transition-colors"
               >
                 Delete Zone
@@ -149,8 +171,19 @@ export function ZoneEditor({ zones, channels, onUpdateZone, onAddZone, onDeleteZ
                 return (
                   <div
                     key={`${chIdx}-${pos}`}
-                    className="flex items-center gap-2 px-4 py-2 border-b border-border-subtle text-sm hover:bg-surface-light/50"
+                    draggable
+                    onDragStart={() => handleDragStart(pos)}
+                    onDragOver={e => handleDragOver(e, pos)}
+                    onDrop={() => handleDrop(pos)}
+                    onDragEnd={handleDragEnd}
+                    className={`relative flex items-center gap-2 px-4 py-2 border-b border-border-subtle text-sm hover:bg-surface-light/50 ${
+                      dragIdx.current === pos ? 'opacity-50' : ''
+                    }`}
                   >
+                    {dropIdx === pos && dropIdx !== dragIdx.current && (
+                      <div className="absolute top-0 left-0 right-0 h-0.5 bg-primary" />
+                    )}
+                    <span className="cursor-grab text-text-dimmed select-none" title="Drag to reorder">&#x2630;</span>
                     <span className="text-text-dimmed w-6 text-right font-mono text-xs">{pos + 1}</span>
                     <span className="flex-1">{ch?.name ?? `Ch ${chIdx}`}</span>
                     <span className="text-text-muted tabular-nums font-mono text-xs">
@@ -161,20 +194,6 @@ export function ZoneEditor({ zones, channels, onUpdateZone, onAddZone, onDeleteZ
                     }`}>
                       {ch?.mode === 'digital' ? 'DMR' : 'FM'}
                     </span>
-                    <button
-                      onClick={() => moveChannel(pos, -1)}
-                      disabled={pos === 0}
-                      className="text-text-muted hover:text-text disabled:opacity-30 px-1 py-0.5 rounded hover:bg-surface-lighter"
-                    >
-                      &uarr;
-                    </button>
-                    <button
-                      onClick={() => moveChannel(pos, 1)}
-                      disabled={pos === zone.channelIndices.length - 1}
-                      className="text-text-muted hover:text-text disabled:opacity-30 px-1 py-0.5 rounded hover:bg-surface-lighter"
-                    >
-                      &darr;
-                    </button>
                     <button
                       onClick={() => removeChannel(chIdx)}
                       className="text-accent-red/70 hover:text-accent-red px-1 py-0.5 rounded hover:bg-accent-red/10"
@@ -217,6 +236,22 @@ export function ZoneEditor({ zones, channels, onUpdateZone, onAddZone, onDeleteZ
           Select a zone to edit
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmDelete !== null}
+        title="Delete Zone"
+        message={`Are you sure you want to delete "${zones.find(z => z.index === confirmDelete)?.name ?? ''}"? This cannot be undone.`}
+        onCancel={() => setConfirmDelete(null)}
+        onConfirm={() => {
+          if (confirmDelete !== null) {
+            onDeleteZone(confirmDelete);
+            const remaining = zones.filter(z => z.index !== confirmDelete);
+            setSelectedZone(remaining.length > 0 ? remaining[0].index : null);
+            toast('Zone deleted');
+          }
+          setConfirmDelete(null);
+        }}
+      />
     </div>
   );
 }

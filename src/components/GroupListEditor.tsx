@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import type { GroupList, DigitalContact } from '../lib/types';
+import { ConfirmDialog } from './ConfirmDialog';
+import { useToast } from './Toast';
 
 function EditableName({ value, onCommit, maxLen = 16 }: { value: string; onCommit: (val: string) => void; maxLen?: number }) {
   const [editing, setEditing] = useState(false);
@@ -43,9 +45,15 @@ interface Props {
 }
 
 export function GroupListEditor({ groupLists, digitalContacts, onUpdateGroupList, onAddGroupList, onDeleteGroupList }: Props) {
+  const toast = useToast();
   const [selected, setSelected] = useState<number | null>(
     groupLists.length > 0 ? groupLists[0].index : null
   );
+  const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
+
+  // Drag state
+  const dragIdx = useRef<number | null>(null);
+  const [dropIdx, setDropIdx] = useState<number | null>(null);
 
   const groupList = groupLists.find(gl => gl.index === selected);
   const assignedSet = new Set(groupList?.contactIndices ?? []);
@@ -54,7 +62,6 @@ export function GroupListEditor({ groupLists, digitalContacts, onUpdateGroupList
 
   const addContact = (contactIndex: number) => {
     if (!groupList) return;
-    // New entries don't have _entryExtras — the writer handles this
     onUpdateGroupList(groupList.index, {
       contactIndices: [...groupList.contactIndices, contactIndex],
     });
@@ -73,6 +80,35 @@ export function GroupListEditor({ groupLists, digitalContacts, onUpdateGroupList
     onUpdateGroupList(index, { name: n, _nameLen: n.length });
   };
 
+  const handleDragStart = (pos: number) => {
+    dragIdx.current = pos;
+  };
+
+  const handleDragOver = (e: React.DragEvent, pos: number) => {
+    e.preventDefault();
+    setDropIdx(pos);
+  };
+
+  const handleDrop = (pos: number) => {
+    if (!groupList || dragIdx.current === null) return;
+    const from = dragIdx.current;
+    if (from === pos) { dragIdx.current = null; setDropIdx(null); return; }
+    const indices = [...groupList.contactIndices];
+    const extras = [...groupList._entryExtras];
+    const [movedIdx] = indices.splice(from, 1);
+    const [movedExtra] = extras.splice(from, 1);
+    indices.splice(pos, 0, movedIdx);
+    extras.splice(pos, 0, movedExtra);
+    onUpdateGroupList(groupList.index, { contactIndices: indices, _entryExtras: extras });
+    dragIdx.current = null;
+    setDropIdx(null);
+  };
+
+  const handleDragEnd = () => {
+    dragIdx.current = null;
+    setDropIdx(null);
+  };
+
   return (
     <div className="flex gap-4 h-full">
       {/* Group list selection */}
@@ -83,6 +119,7 @@ export function GroupListEditor({ groupLists, digitalContacts, onUpdateGroupList
             onClick={() => {
               const idx = onAddGroupList();
               setSelected(idx);
+              toast('Group list added');
             }}
             className="text-xs px-2 py-1 rounded-md bg-accent-green/15 text-accent-green hover:bg-accent-green/25 transition-colors"
           >
@@ -130,11 +167,7 @@ export function GroupListEditor({ groupLists, digitalContacts, onUpdateGroupList
                 <span>— {groupList.contactIndices.length} contacts</span>
               </h3>
               <button
-                onClick={() => {
-                  onDeleteGroupList(groupList.index);
-                  const remaining = groupLists.filter(gl => gl.index !== groupList.index);
-                  setSelected(remaining.length > 0 ? remaining[0].index : null);
-                }}
+                onClick={() => setConfirmDelete(groupList.index)}
                 className="text-xs px-2 py-1 rounded-md bg-accent-red/10 text-accent-red/70 hover:bg-accent-red/20 hover:text-accent-red transition-colors"
               >
                 Delete
@@ -146,8 +179,19 @@ export function GroupListEditor({ groupLists, digitalContacts, onUpdateGroupList
                 return (
                   <div
                     key={`${cIdx}-${pos}`}
-                    className="flex items-center gap-2 px-4 py-2 border-b border-border-subtle text-sm hover:bg-surface-light/50"
+                    draggable
+                    onDragStart={() => handleDragStart(pos)}
+                    onDragOver={e => handleDragOver(e, pos)}
+                    onDrop={() => handleDrop(pos)}
+                    onDragEnd={handleDragEnd}
+                    className={`relative flex items-center gap-2 px-4 py-2 border-b border-border-subtle text-sm hover:bg-surface-light/50 ${
+                      dragIdx.current === pos ? 'opacity-50' : ''
+                    }`}
                   >
+                    {dropIdx === pos && dropIdx !== dragIdx.current && (
+                      <div className="absolute top-0 left-0 right-0 h-0.5 bg-primary" />
+                    )}
+                    <span className="cursor-grab text-text-dimmed select-none" title="Drag to reorder">&#x2630;</span>
                     <span className="text-text-dimmed w-6 text-right font-mono text-xs">{pos + 1}</span>
                     <span className="flex-1">Contact #{cIdx}</span>
                     {contact && (
@@ -209,6 +253,22 @@ export function GroupListEditor({ groupLists, digitalContacts, onUpdateGroupList
           Select a group list to edit
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmDelete !== null}
+        title="Delete Group List"
+        message={`Are you sure you want to delete "${groupLists.find(gl => gl.index === confirmDelete)?.name ?? ''}"? This cannot be undone.`}
+        onCancel={() => setConfirmDelete(null)}
+        onConfirm={() => {
+          if (confirmDelete !== null) {
+            onDeleteGroupList(confirmDelete);
+            const remaining = groupLists.filter(gl => gl.index !== confirmDelete);
+            setSelected(remaining.length > 0 ? remaining[0].index : null);
+            toast('Group list deleted');
+          }
+          setConfirmDelete(null);
+        }}
+      />
     </div>
   );
 }

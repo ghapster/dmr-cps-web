@@ -1,4 +1,7 @@
+import { useState } from 'react';
 import type { RadioId, AnalogContact } from '../lib/types';
+import { ConfirmDialog } from './ConfirmDialog';
+import { useToast } from './Toast';
 
 interface Props {
   radioIds: RadioId[];
@@ -15,6 +18,10 @@ export function ContactTable({
   radioIds, analogContacts, onUpdateRadioId, onUpdateAnalogContact,
   onAddRadioId, onDeleteRadioId, onAddAnalogContact, onDeleteAnalogContact,
 }: Props) {
+  const toast = useToast();
+  const [confirmDeleteRid, setConfirmDeleteRid] = useState<number | null>(null);
+  const [confirmDeleteAc, setConfirmDeleteAc] = useState<number | null>(null);
+
   return (
     <div className="space-y-6">
       {/* Radio IDs */}
@@ -23,7 +30,7 @@ export function ContactTable({
           <h3 className="text-sm font-medium text-text-muted">Radio IDs (DMR)</h3>
           {onAddRadioId && (
             <button
-              onClick={onAddRadioId}
+              onClick={() => { onAddRadioId(); toast('Radio ID added'); }}
               className="text-xs px-2 py-1 rounded-md bg-accent-green/15 text-accent-green hover:bg-accent-green/25 transition-colors"
             >
               + Add
@@ -68,7 +75,7 @@ export function ContactTable({
                   {onDeleteRadioId && (
                     <td className="px-4 py-2 text-right">
                       <button
-                        onClick={() => onDeleteRadioId(rid.index)}
+                        onClick={() => setConfirmDeleteRid(rid.index)}
                         className="text-accent-red/70 hover:text-accent-red px-1 py-0.5 rounded hover:bg-accent-red/10"
                       >
                         &times;
@@ -95,7 +102,7 @@ export function ContactTable({
           <h3 className="text-sm font-medium text-text-muted">DTMF Contacts</h3>
           {onAddAnalogContact && (
             <button
-              onClick={onAddAnalogContact}
+              onClick={() => { onAddAnalogContact(); toast('DTMF contact added'); }}
               className="text-xs px-2 py-1 rounded-md bg-accent-green/15 text-accent-green hover:bg-accent-green/25 transition-colors"
             >
               + Add
@@ -137,7 +144,7 @@ export function ContactTable({
                   {onDeleteAnalogContact && (
                     <td className="px-4 py-2 text-right">
                       <button
-                        onClick={() => onDeleteAnalogContact(ac.index)}
+                        onClick={() => setConfirmDeleteAc(ac.index)}
                         className="text-accent-red/70 hover:text-accent-red px-1 py-0.5 rounded hover:bg-accent-red/10"
                       >
                         &times;
@@ -157,6 +164,34 @@ export function ContactTable({
           </table>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={confirmDeleteRid !== null}
+        title="Delete Radio ID"
+        message={`Are you sure you want to delete radio ID "${radioIds.find(r => r.index === confirmDeleteRid)?.name ?? ''}"?`}
+        onCancel={() => setConfirmDeleteRid(null)}
+        onConfirm={() => {
+          if (confirmDeleteRid !== null && onDeleteRadioId) {
+            onDeleteRadioId(confirmDeleteRid);
+            toast('Radio ID deleted');
+          }
+          setConfirmDeleteRid(null);
+        }}
+      />
+
+      <ConfirmDialog
+        open={confirmDeleteAc !== null}
+        title="Delete DTMF Contact"
+        message={`Are you sure you want to delete DTMF contact "${analogContacts.find(ac => ac.index === confirmDeleteAc)?.name ?? ''}"?`}
+        onCancel={() => setConfirmDeleteAc(null)}
+        onConfirm={() => {
+          if (confirmDeleteAc !== null && onDeleteAnalogContact) {
+            onDeleteAnalogContact(confirmDeleteAc);
+            toast('DTMF contact deleted');
+          }
+          setConfirmDeleteAc(null);
+        }}
+      />
     </div>
   );
 }

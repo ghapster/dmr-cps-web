@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import type { Codeplug, Channel, Zone, RadioId, AnalogContact, DigitalContact, AprsSettings, ScanList, GroupList, RoamingChannel, RoamingZone, ValidationIssue } from '../lib/types';
 import { parseRdt } from '../lib/rdt-parser';
-import { writeRdt, downloadBlob } from '../lib/rdt-writer';
+import { writeRdt, downloadBlob, createDefaultChannel } from '../lib/rdt-writer';
 import { validateCodeplug } from '../lib/validator';
 import { exportChannelsCsv, downloadCsv } from '../lib/csv';
 
@@ -303,6 +303,18 @@ export function useCodeplug() {
     }));
   }, [updateCodeplug]);
 
+  const importChannels = useCallback((partials: Partial<Channel>[]) => {
+    updateCodeplug(cp => {
+      let channels = [...cp.channels];
+      for (const partial of partials) {
+        const ch = createDefaultChannel(channels);
+        Object.assign(ch, partial);
+        channels = [...channels, ch];
+      }
+      return { ...cp, channels };
+    });
+  }, [updateCodeplug]);
+
   const undo = useCallback(() => {
     setState(s => {
       if (!s.codeplug || undoStack.current.length === 0) return s;
@@ -356,6 +368,7 @@ export function useCodeplug() {
     addRoamingZone,
     deleteRoamingZone,
     updateRoamingZone,
+    importChannels,
     updateCodeplug,
     undo,
     redo,

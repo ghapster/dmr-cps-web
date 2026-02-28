@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { ActiveSection, ValidationIssue, Codeplug } from '../lib/types';
 
 interface SidebarItem {
@@ -14,7 +15,21 @@ interface Props {
   children: React.ReactNode;
 }
 
+const sectionNavMap: Record<ValidationIssue['section'], ActiveSection> = {
+  channel: 'channels',
+  zone: 'zones',
+  contact: 'contacts',
+  scanList: 'scanLists',
+  groupList: 'groupLists',
+  roaming: 'roaming',
+  general: 'settings',
+};
+
+const MAX_VISIBLE_ISSUES = 20;
+
 export function AppShell({ activeSection, onSectionChange, codeplug, issues, children }: Props) {
+  const [issuesExpanded, setIssuesExpanded] = useState(false);
+
   const items: SidebarItem[] = [
     { key: 'channels', label: 'Channels', count: codeplug?.channels.length },
     { key: 'zones', label: 'Zones', count: codeplug?.zones.length },
@@ -31,6 +46,9 @@ export function AppShell({ activeSection, onSectionChange, codeplug, issues, chi
 
   const errorCount = issues.filter(i => i.severity === 'error').length;
   const warnCount = issues.filter(i => i.severity === 'warning').length;
+  const totalCount = errorCount + warnCount;
+  const visibleIssues = issues.filter(i => i.severity !== 'info').slice(0, MAX_VISIBLE_ISSUES);
+  const hiddenCount = totalCount - visibleIssues.length;
 
   return (
     <div className="flex flex-1 overflow-hidden">
@@ -63,13 +81,41 @@ export function AppShell({ activeSection, onSectionChange, codeplug, issues, chi
         </div>
 
         {/* Validation summary */}
-        {(errorCount > 0 || warnCount > 0) && (
-          <div className="px-4 py-3 border-t border-border-subtle text-xs space-y-1">
-            {errorCount > 0 && (
-              <div className="text-accent-red">{errorCount} error{errorCount > 1 ? 's' : ''}</div>
-            )}
-            {warnCount > 0 && (
-              <div className="text-accent-amber">{warnCount} warning{warnCount > 1 ? 's' : ''}</div>
+        {totalCount > 0 && (
+          <div className="border-t border-border-subtle">
+            <button
+              onClick={() => setIssuesExpanded(!issuesExpanded)}
+              className="w-full px-4 py-3 text-xs flex items-center gap-2 hover:bg-surface-light transition-colors"
+            >
+              <span className={`transition-transform ${issuesExpanded ? 'rotate-90' : ''}`}>&#9654;</span>
+              <span className="flex gap-2">
+                {errorCount > 0 && (
+                  <span className="text-accent-red">{errorCount} error{errorCount > 1 ? 's' : ''}</span>
+                )}
+                {warnCount > 0 && (
+                  <span className="text-accent-amber">{warnCount} warning{warnCount > 1 ? 's' : ''}</span>
+                )}
+              </span>
+            </button>
+            {issuesExpanded && (
+              <div className="max-h-48 overflow-y-auto px-1 pb-2">
+                {visibleIssues.map((issue, i) => (
+                  <button
+                    key={i}
+                    onClick={() => onSectionChange(sectionNavMap[issue.section])}
+                    className="w-full text-left px-3 py-1.5 text-xs hover:bg-surface-light rounded-md transition-colors"
+                  >
+                    <span className={issue.severity === 'error' ? 'text-accent-red' : 'text-accent-amber'}>
+                      {issue.message}
+                    </span>
+                  </button>
+                ))}
+                {hiddenCount > 0 && (
+                  <div className="px-3 py-1.5 text-xs text-text-dimmed">
+                    and {hiddenCount} more...
+                  </div>
+                )}
+              </div>
             )}
           </div>
         )}

@@ -1,4 +1,5 @@
 import type { TextMessage } from '../lib/types';
+import { useToast } from './Toast';
 
 interface Props {
   textMessages: TextMessage[];
@@ -8,6 +9,8 @@ interface Props {
 }
 
 export function TextMessageEditor({ textMessages, onUpdateTextMessage, onAddTextMessage, onDeleteTextMessage }: Props) {
+  const toast = useToast();
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
@@ -15,7 +18,7 @@ export function TextMessageEditor({ textMessages, onUpdateTextMessage, onAddText
           Text Messages — {textMessages.length} messages
         </h3>
         <button
-          onClick={onAddTextMessage}
+          onClick={() => { onAddTextMessage(); toast('Message added'); }}
           className="text-xs px-2 py-1 rounded-md bg-accent-green/15 text-accent-green hover:bg-accent-green/25 transition-colors"
         >
           + Add
@@ -46,7 +49,7 @@ export function TextMessageEditor({ textMessages, onUpdateTextMessage, onAddText
                 </td>
                 <td className="px-4 py-2 text-right">
                   <button
-                    onClick={() => onDeleteTextMessage(msg.index)}
+                    onClick={() => { onDeleteTextMessage(msg.index); toast('Message deleted'); }}
                     className="text-accent-red/70 hover:text-accent-red px-1 py-0.5 rounded hover:bg-accent-red/10"
                   >
                     &times;

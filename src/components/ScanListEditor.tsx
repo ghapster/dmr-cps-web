@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import type { ScanList, Channel } from '../lib/types';
+import { ConfirmDialog } from './ConfirmDialog';
+import { useToast } from './Toast';
 
 function EditableName({ value, onCommit, maxLen = 16 }: { value: string; onCommit: (val: string) => void; maxLen?: number }) {
   const [editing, setEditing] = useState(false);
@@ -43,9 +45,15 @@ interface Props {
 }
 
 export function ScanListEditor({ scanLists, channels, onUpdateScanList, onAddScanList, onDeleteScanList }: Props) {
+  const toast = useToast();
   const [selected, setSelected] = useState<number | null>(
     scanLists.length > 0 ? scanLists[0].index : null
   );
+  const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
+
+  // Drag state
+  const dragIdx = useRef<number | null>(null);
+  const [dropIdx, setDropIdx] = useState<number | null>(null);
 
   const scanList = scanLists.find(sl => sl.index === selected);
   const channelMap = new Map(channels.map(ch => [ch.index, ch]));
@@ -69,15 +77,33 @@ export function ScanListEditor({ scanLists, channels, onUpdateScanList, onAddSca
     });
   };
 
-  const moveChannel = (fromIdx: number, dir: -1 | 1) => {
-    if (!scanList) return;
-    const toIdx = fromIdx + dir;
+  const handleDragStart = (pos: number) => {
+    dragIdx.current = pos;
+  };
+
+  const handleDragOver = (e: React.DragEvent, pos: number) => {
+    e.preventDefault();
+    setDropIdx(pos);
+  };
+
+  const handleDrop = (pos: number) => {
+    if (!scanList || dragIdx.current === null) return;
+    const from = dragIdx.current;
+    if (from === pos) { dragIdx.current = null; setDropIdx(null); return; }
     const indices = [...scanList.channelIndices];
     const flags = [...scanList.entryFlags];
-    if (toIdx < 0 || toIdx >= indices.length) return;
-    [indices[fromIdx], indices[toIdx]] = [indices[toIdx], indices[fromIdx]];
-    [flags[fromIdx], flags[toIdx]] = [flags[toIdx], flags[fromIdx]];
+    const [movedIdx] = indices.splice(from, 1);
+    const [movedFlag] = flags.splice(from, 1);
+    indices.splice(pos, 0, movedIdx);
+    flags.splice(pos, 0, movedFlag);
     onUpdateScanList(scanList.index, { channelIndices: indices, entryFlags: flags });
+    dragIdx.current = null;
+    setDropIdx(null);
+  };
+
+  const handleDragEnd = () => {
+    dragIdx.current = null;
+    setDropIdx(null);
   };
 
   return (
@@ -90,6 +116,7 @@ export function ScanListEditor({ scanLists, channels, onUpdateScanList, onAddSca
             onClick={() => {
               const idx = onAddScanList();
               setSelected(idx);
+              toast('Scan list added');
             }}
             className="text-xs px-2 py-1 rounded-md bg-accent-green/15 text-accent-green hover:bg-accent-green/25 transition-colors"
           >
@@ -137,11 +164,7 @@ export function ScanListEditor({ scanLists, channels, onUpdateScanList, onAddSca
                 <span>— {scanList.channelIndices.length} channels</span>
               </h3>
               <button
-                onClick={() => {
-                  onDeleteScanList(scanList.index);
-                  const remaining = scanLists.filter(sl => sl.index !== scanList.index);
-                  setSelected(remaining.length > 0 ? remaining[0].index : null);
-                }}
+                onClick={() => setConfirmDelete(scanList.index)}
                 className="text-xs px-2 py-1 rounded-md bg-accent-red/10 text-accent-red/70 hover:bg-accent-red/20 hover:text-accent-red transition-colors"
               >
                 Delete
@@ -153,8 +176,19 @@ export function ScanListEditor({ scanLists, channels, onUpdateScanList, onAddSca
                 return (
                   <div
                     key={`${chIdx}-${pos}`}
-                    className="flex items-center gap-2 px-4 py-2 border-b border-border-subtle text-sm hover:bg-surface-light/50"
+                    draggable
+                    onDragStart={() => handleDragStart(pos)}
+                    onDragOver={e => handleDragOver(e, pos)}
+                    onDrop={() => handleDrop(pos)}
+                    onDragEnd={handleDragEnd}
+                    className={`relative flex items-center gap-2 px-4 py-2 border-b border-border-subtle text-sm hover:bg-surface-light/50 ${
+                      dragIdx.current === pos ? 'opacity-50' : ''
+                    }`}
                   >
+                    {dropIdx === pos && dropIdx !== dragIdx.current && (
+                      <div className="absolute top-0 left-0 right-0 h-0.5 bg-primary" />
+                    )}
+                    <span className="cursor-grab text-text-dimmed select-none" title="Drag to reorder">&#x2630;</span>
                     <span className="text-text-dimmed w-6 text-right font-mono text-xs">{pos + 1}</span>
                     <span className="flex-1">{ch?.name ?? `Ch ${chIdx}`}</span>
                     <span className="text-text-muted tabular-nums font-mono text-xs">
@@ -165,20 +199,6 @@ export function ScanListEditor({ scanLists, channels, onUpdateScanList, onAddSca
                     }`}>
                       {ch?.mode === 'digital' ? 'DMR' : 'FM'}
                     </span>
-                    <button
-                      onClick={() => moveChannel(pos, -1)}
-                      disabled={pos === 0}
-                      className="text-text-muted hover:text-text disabled:opacity-30 px-1 py-0.5 rounded hover:bg-surface-lighter"
-                    >
-                      &uarr;
-                    </button>
-                    <button
-                      onClick={() => moveChannel(pos, 1)}
-                      disabled={pos === scanList.channelIndices.length - 1}
-                      className="text-text-muted hover:text-text disabled:opacity-30 px-1 py-0.5 rounded hover:bg-surface-lighter"
-                    >
-                      &darr;
-                    </button>
                     <button
                       onClick={() => removeChannel(pos)}
                       className="text-accent-red/70 hover:text-accent-red px-1 py-0.5 rounded hover:bg-accent-red/10"
@@ -221,6 +241,22 @@ export function ScanListEditor({ scanLists, channels, onUpdateScanList, onAddSca
           Select a scan list to edit
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmDelete !== null}
+        title="Delete Scan List"
+        message={`Are you sure you want to delete "${scanLists.find(sl => sl.index === confirmDelete)?.name ?? ''}"? This cannot be undone.`}
+        onCancel={() => setConfirmDelete(null)}
+        onConfirm={() => {
+          if (confirmDelete !== null) {
+            onDeleteScanList(confirmDelete);
+            const remaining = scanLists.filter(sl => sl.index !== confirmDelete);
+            setSelected(remaining.length > 0 ? remaining[0].index : null);
+            toast('Scan list deleted');
+          }
+          setConfirmDelete(null);
+        }}
+      />
     </div>
   );
 }

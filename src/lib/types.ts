@@ -161,7 +161,7 @@ export type ValidationSeverity = 'error' | 'warning' | 'info';
 export interface ValidationIssue {
   severity: ValidationSeverity;
   message: string;
-  section: 'channel' | 'zone' | 'contact' | 'scanList' | 'general';
+  section: 'channel' | 'zone' | 'contact' | 'scanList' | 'groupList' | 'roaming' | 'general';
   index?: number;  // item index, if applicable
 }
 
