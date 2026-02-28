@@ -1,12 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { ActiveSection } from './lib/types';
 import {
+  writeRdt,
   createDefaultChannel, createDefaultZone, createDefaultScanList, createDefaultGroupList,
   createDefaultRadioId, createDefaultAnalogContact, createDefaultTextMessage,
   createDefaultRoamingChannel, createDefaultRoamingZone,
 } from './lib/rdt-writer';
 import { useCodeplug } from './hooks/useCodeplug';
 import { useToast } from './components/Toast';
+import { getGitHubToken, pushToGitHub } from './lib/storage';
 import { FileToolbar } from './components/FileToolbar';
 import { AppShell } from './components/AppShell';
 import { ChannelTable } from './components/ChannelTable';
@@ -36,11 +38,20 @@ function App() {
     addRoamingChannel, deleteRoamingChannel, updateRoamingChannel,
     addRoamingZone, deleteRoamingZone, updateRoamingZone,
     importChannels,
+    loadPersistedCodeplug,
     undo, redo, canUndo, canRedo,
   } = useCodeplug();
 
   const [section, setSection] = useState<ActiveSection>('channels');
   const [error, setError] = useState<string | null>(null);
+
+  // Auto-load persisted codeplug on mount
+  useEffect(() => {
+    loadPersistedCodeplug().then(result => {
+      if (result) toast(`Restored ${result.fileName}`, 'info');
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleOpen = useCallback(async (file: File) => {
     try {
@@ -61,6 +72,16 @@ function App() {
     exportCsv();
     toast('CSV exported');
   }, [exportCsv, toast]);
+
+  const handleSyncNow = useCallback(() => {
+    if (!codeplug || !fileName) return;
+    const buffer = writeRdt(codeplug);
+    if (getGitHubToken()) {
+      pushToGitHub(fileName, buffer)
+        .then(() => toast('Synced to GitHub'))
+        .catch(() => toast('Sync failed', 'error'));
+    }
+  }, [codeplug, fileName, toast]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -226,6 +247,7 @@ function App() {
           <SettingsViewer
             header={codeplug.header}
             settingsBlock={codeplug.settingsBlock}
+            onSyncNow={handleSyncNow}
           />
         );
     }

@@ -4,6 +4,7 @@ import { parseRdt } from '../lib/rdt-parser';
 import { writeRdt, downloadBlob, createDefaultChannel } from '../lib/rdt-writer';
 import { validateCodeplug } from '../lib/validator';
 import { exportChannelsCsv, downloadCsv } from '../lib/csv';
+import { saveToLocal, loadFromLocal, getGitHubToken, pushToGitHub, pullFromGitHub } from '../lib/storage';
 
 export interface CodeplugState {
   codeplug: Codeplug | null;
@@ -39,6 +40,9 @@ export function useCodeplug() {
     undoStack.current = [];
     redoStack.current = [];
     setState({ codeplug, fileName: file.name, dirty: false, issues });
+    // Persist locally + push to GitHub (fire-and-forget)
+    saveToLocal(file.name, buffer).catch(() => {});
+    if (getGitHubToken()) pushToGitHub(file.name, buffer).catch(() => {});
   }, []);
 
   const saveFile = useCallback(() => {
@@ -47,6 +51,9 @@ export function useCodeplug() {
     const name = state.fileName || 'codeplug.rdt';
     downloadBlob(buffer, name);
     setState(s => ({ ...s, dirty: false }));
+    // Persist the saved (possibly edited) codeplug
+    saveToLocal(name, buffer).catch(() => {});
+    if (getGitHubToken()) pushToGitHub(name, buffer).catch(() => {});
   }, [state.codeplug, state.fileName]);
 
   const exportCsv = useCallback(() => {
@@ -303,6 +310,26 @@ export function useCodeplug() {
     }));
   }, [updateCodeplug]);
 
+  const loadPersistedCodeplug = useCallback(async (): Promise<{ fileName: string } | null> => {
+    // Try GitHub first (cross-device), fall back to IndexedDB (same-device)
+    let result: { fileName: string; buffer: ArrayBuffer } | null = null;
+    try { result = await pullFromGitHub(); } catch { /* ignore */ }
+    if (!result) {
+      try { result = await loadFromLocal(); } catch { /* ignore */ }
+    }
+    if (!result) return null;
+    try {
+      const codeplug = parseRdt(result.buffer);
+      const issues = validateCodeplug(codeplug);
+      undoStack.current = [];
+      redoStack.current = [];
+      setState({ codeplug, fileName: result.fileName, dirty: false, issues });
+      return { fileName: result.fileName };
+    } catch {
+      return null;
+    }
+  }, []);
+
   const importChannels = useCallback((partials: Partial<Channel>[]) => {
     updateCodeplug(cp => {
       let channels = [...cp.channels];
@@ -369,6 +396,7 @@ export function useCodeplug() {
     deleteRoamingZone,
     updateRoamingZone,
     importChannels,
+    loadPersistedCodeplug,
     updateCodeplug,
     undo,
     redo,
