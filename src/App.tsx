@@ -7,6 +7,7 @@ import {
   createDefaultRoamingChannel, createDefaultRoamingZone,
 } from './lib/rdt-writer';
 import { useCodeplug } from './hooks/useCodeplug';
+import { useRadio } from './hooks/useRadio';
 import { useToast } from './components/Toast';
 import { getGitHubToken, pushToGitHub } from './lib/storage';
 import { FileToolbar } from './components/FileToolbar';
@@ -21,6 +22,7 @@ import { TextMessageEditor } from './components/TextMessageEditor';
 import { GroupListEditor } from './components/GroupListEditor';
 import { AprsEditor } from './components/AprsEditor';
 import { RoamingEditor } from './components/RoamingEditor';
+import { ConfirmDialog } from './components/ConfirmDialog';
 
 function App() {
   const toast = useToast();
@@ -37,13 +39,16 @@ function App() {
     addAnalogContact, deleteAnalogContact, updateAnalogContact,
     addRoamingChannel, deleteRoamingChannel, updateRoamingChannel,
     addRoamingZone, deleteRoamingZone, updateRoamingZone,
-    importChannels,
+    importChannels, loadCodeplug,
     loadPersistedCodeplug,
     undo, redo, canUndo, canRedo,
   } = useCodeplug();
 
+  const radio = useRadio();
+
   const [section, setSection] = useState<ActiveSection>('channels');
   const [error, setError] = useState<string | null>(null);
+  const [showWriteConfirm, setShowWriteConfirm] = useState(false);
 
   // Auto-load persisted codeplug on mount
   useEffect(() => {
@@ -82,6 +87,36 @@ function App() {
         .catch(() => toast('Sync failed', 'error'));
     }
   }, [codeplug, fileName, toast]);
+
+  // Radio handlers
+  const handleRadioConnect = useCallback(() => {
+    radio.connect();
+  }, [radio]);
+
+  const handleRadioDisconnect = useCallback(() => {
+    radio.disconnect();
+  }, [radio]);
+
+  const handleRadioRead = useCallback(async () => {
+    const cp = await radio.readFromRadio();
+    if (cp) {
+      loadCodeplug(cp, `Radio (${radio.model || 'D578UV'})`);
+      toast(`Read ${cp.channels.length} channels from radio`, 'info');
+    } else if (radio.error) {
+      toast(`Read failed: ${radio.error}`, 'error');
+    }
+  }, [radio, loadCodeplug, toast]);
+
+  const handleRadioWrite = useCallback(async () => {
+    if (!codeplug) return;
+    const success = await radio.writeToRadio(codeplug);
+    if (success) {
+      toast('Codeplug written to radio');
+    } else if (radio.error) {
+      toast(`Write failed: ${radio.error}`, 'error');
+    }
+    setShowWriteConfirm(false);
+  }, [codeplug, radio, toast]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -125,7 +160,7 @@ function App() {
             <div>
               <h2 className="text-xl font-medium text-text mb-2">DMR CPS — Web Edition</h2>
               <p className="text-base text-text-muted max-w-md">
-                Open an Anytone D578UV .RDT codeplug file to get started.
+                Open an Anytone D578UV .RDT codeplug file, or connect your radio via USB to read directly.
               </p>
             </div>
             <div className="border-2 border-dashed border-border rounded-xl px-8 py-6">
@@ -266,6 +301,16 @@ function App() {
         onRedo={redo}
         canUndo={canUndo}
         canRedo={canRedo}
+        radioSupported={radio.supported}
+        radioStatus={radio.status}
+        radioModel={radio.model}
+        radioProgress={radio.progress}
+        radioProgressLabel={radio.progressLabel}
+        radioError={radio.error}
+        onRadioConnect={handleRadioConnect}
+        onRadioDisconnect={handleRadioDisconnect}
+        onRadioRead={handleRadioRead}
+        onRadioWrite={() => setShowWriteConfirm(true)}
       />
       {error && codeplug && (
         <div className="px-5 py-2 bg-accent-red/10 border-b border-accent-red/30 text-accent-red text-sm">
@@ -284,6 +329,15 @@ function App() {
       ) : (
         renderContent()
       )}
+
+      <ConfirmDialog
+        open={showWriteConfirm}
+        title="Write to Radio"
+        message="This will overwrite the codeplug on your radio. The radio's current programming will be replaced. Continue?"
+        confirmLabel="Write"
+        onConfirm={handleRadioWrite}
+        onCancel={() => setShowWriteConfirm(false)}
+      />
     </>
   );
 }

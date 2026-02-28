@@ -336,6 +336,13 @@ export function useCodeplug() {
     }
   }, []);
 
+  const loadCodeplug = useCallback((codeplug: Codeplug, fileName: string) => {
+    const issues = validateCodeplug(codeplug);
+    undoStack.current = [];
+    redoStack.current = [];
+    setState({ codeplug, fileName, dirty: false, issues });
+  }, []);
+
   const importChannels = useCallback((partials: Partial<Channel>[]) => {
     updateCodeplug(cp => {
       let channels = [...cp.channels];
@@ -402,6 +409,7 @@ export function useCodeplug() {
     deleteRoamingZone,
     updateRoamingZone,
     importChannels,
+    loadCodeplug,
     loadPersistedCodeplug,
     updateCodeplug,
     undo,

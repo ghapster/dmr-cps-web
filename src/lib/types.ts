@@ -130,6 +130,7 @@ export interface RoamingZone {
 }
 
 export interface Codeplug {
+  source?: 'rdt' | 'radio';
   header: FileHeader;
   settingsBlock: Uint8Array;   // preserved verbatim — not edited in Phase 1
   channels: Channel[];

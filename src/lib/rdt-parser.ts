@@ -884,6 +884,7 @@ export function parseRdt(buffer: ArrayBuffer): Codeplug {
       : new Uint8Array(0);
 
   return {
+    source: 'rdt' as const,
     header,
     settingsBlock,
     channels,
