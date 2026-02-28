@@ -5,9 +5,11 @@ interface Props {
   zones: Zone[];
   channels: Channel[];
   onUpdateZone: (index: number, changes: Partial<Zone>) => void;
+  onAddZone: () => number;
+  onDeleteZone: (index: number) => void;
 }
 
-export function ZoneEditor({ zones, channels, onUpdateZone }: Props) {
+export function ZoneEditor({ zones, channels, onUpdateZone, onAddZone, onDeleteZone }: Props) {
   const [selectedZone, setSelectedZone] = useState<number | null>(
     zones.length > 0 ? zones[0].index : null
   );
@@ -45,7 +47,18 @@ export function ZoneEditor({ zones, channels, onUpdateZone }: Props) {
     <div className="flex gap-4 h-full">
       {/* Zone list */}
       <div className="w-56 shrink-0 space-y-1">
-        <h3 className="text-sm font-medium text-text-muted mb-3">Zones</h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-medium text-text-muted">Zones</h3>
+          <button
+            onClick={() => {
+              const idx = onAddZone();
+              setSelectedZone(idx);
+            }}
+            className="text-xs px-2 py-1 rounded-md bg-accent-green/15 text-accent-green hover:bg-accent-green/25 transition-colors"
+          >
+            + Add Zone
+          </button>
+        </div>
         {zones.map(z => (
           <button
             key={z.index}
@@ -65,6 +78,9 @@ export function ZoneEditor({ zones, channels, onUpdateZone }: Props) {
             <span className="text-xs text-text-dimmed">{z.channelIndices.length}</span>
           </button>
         ))}
+        {zones.length === 0 && (
+          <div className="text-sm text-text-dimmed px-3 py-6">No zones configured</div>
+        )}
       </div>
 
       {/* Zone detail */}
@@ -72,9 +88,21 @@ export function ZoneEditor({ zones, channels, onUpdateZone }: Props) {
         <div className="flex-1 flex gap-4">
           {/* Assigned channels */}
           <div className="flex-1 space-y-2">
-            <h3 className="text-sm font-medium text-text-muted">
-              {zone.name} — {zone.channelIndices.length} channels
-            </h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-medium text-text-muted">
+                {zone.name} — {zone.channelIndices.length} channels
+              </h3>
+              <button
+                onClick={() => {
+                  onDeleteZone(zone.index);
+                  const remaining = zones.filter(z => z.index !== zone.index);
+                  setSelectedZone(remaining.length > 0 ? remaining[0].index : null);
+                }}
+                className="text-xs px-2 py-1 rounded-md bg-accent-red/10 text-accent-red/70 hover:bg-accent-red/20 hover:text-accent-red transition-colors"
+              >
+                Delete Zone
+              </button>
+            </div>
             <div className="overflow-auto rounded-xl border border-border max-h-[calc(100vh-200px)]" style={{ boxShadow: 'var(--shadow-sm)' }}>
               {zone.channelIndices.map((chIdx, pos) => {
                 const ch = channelMap.get(chIdx);

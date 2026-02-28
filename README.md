@@ -18,11 +18,11 @@ A browser-based codeplug editor for the **Anytone D578UV** DMR radio. Open, edit
 | Section | Status | Notes |
 |---------|--------|-------|
 | Channels | **Editable** | Inline editing (name, RX/TX freq, mode, power, CC, TS). Sort, filter by mode/search, multi-select delete, add new, duplicate. |
-| Zones | **Editable** | Add/remove/reorder channels within zones. |
+| Zones | **Editable** | Add/delete zones, add/remove/reorder channels within zones. |
 | Radio IDs | **Editable** | Edit DMR ID and name. |
 | DTMF Contacts | **Editable** | Edit DTMF code and name (length capped at original). |
 | Digital Contacts | **Editable** | Edit DMR ID and Call Type (group/private). Names use proprietary encoding — not yet decoded. |
-| Scan Lists | **Editable** | Add/remove/reorder channels within scan lists. |
+| Scan Lists | **Editable** | Add/delete scan lists, add/remove/reorder channels within scan lists. |
 | Text Messages | **Editable** | Edit message text (144 char max). |
 | Group Lists | **Editable** | Add/remove contacts within group lists. |
 | APRS | **Editable** | GPS message, destination, callsign, SSID, paths, comment. Field length limits enforced. |

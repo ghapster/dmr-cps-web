@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { ActiveSection } from './lib/types';
-import { createDefaultChannel } from './lib/rdt-writer';
+import { createDefaultChannel, createDefaultZone, createDefaultScanList } from './lib/rdt-writer';
 import { useCodeplug } from './hooks/useCodeplug';
 import { FileToolbar } from './components/FileToolbar';
 import { AppShell } from './components/AppShell';
@@ -20,9 +20,9 @@ function App() {
     codeplug, fileName, dirty, issues,
     openFile, saveFile, exportCsv,
     updateChannel, deleteChannels, addChannel, duplicateChannel,
-    updateZone, updateRadioId, updateTextMessage,
+    addZone, deleteZone, updateZone, updateRadioId, updateTextMessage,
     updateDigitalContact, updateAprsSettings,
-    updateScanList, updateGroupList,
+    addScanList, deleteScanList, updateScanList, updateGroupList,
     updateAnalogContact, updateRoamingChannel, updateRoamingZone,
     undo, redo, canUndo, canRedo,
   } = useCodeplug();
@@ -116,6 +116,8 @@ function App() {
             zones={codeplug.zones}
             channels={codeplug.channels}
             onUpdateZone={updateZone}
+            onAddZone={() => { const z = createDefaultZone(codeplug.zones); addZone(z); return z.index; }}
+            onDeleteZone={deleteZone}
           />
         );
       case 'radioIds':
@@ -141,6 +143,8 @@ function App() {
             scanLists={codeplug.scanLists}
             channels={codeplug.channels}
             onUpdateScanList={updateScanList}
+            onAddScanList={() => { const sl = createDefaultScanList(codeplug.scanLists); addScanList(sl); return sl.index; }}
+            onDeleteScanList={deleteScanList}
           />
         );
       case 'digitalContacts':

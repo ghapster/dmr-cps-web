@@ -103,6 +103,20 @@ export function useCodeplug() {
     });
   }, [updateCodeplug]);
 
+  const addZone = useCallback((zone: Zone) => {
+    updateCodeplug(cp => ({
+      ...cp,
+      zones: [...cp.zones, zone],
+    }));
+  }, [updateCodeplug]);
+
+  const deleteZone = useCallback((index: number) => {
+    updateCodeplug(cp => ({
+      ...cp,
+      zones: cp.zones.filter(z => z.index !== index),
+    }));
+  }, [updateCodeplug]);
+
   const updateZone = useCallback((index: number, changes: Partial<Zone>) => {
     updateCodeplug(cp => ({
       ...cp,
@@ -143,6 +157,20 @@ export function useCodeplug() {
     updateCodeplug(cp => ({
       ...cp,
       aprsSettings: { ...cp.aprsSettings, ...changes },
+    }));
+  }, [updateCodeplug]);
+
+  const addScanList = useCallback((scanList: ScanList) => {
+    updateCodeplug(cp => ({
+      ...cp,
+      scanLists: [...cp.scanLists, scanList],
+    }));
+  }, [updateCodeplug]);
+
+  const deleteScanList = useCallback((index: number) => {
+    updateCodeplug(cp => ({
+      ...cp,
+      scanLists: cp.scanLists.filter(sl => sl.index !== index),
     }));
   }, [updateCodeplug]);
 
@@ -218,11 +246,15 @@ export function useCodeplug() {
     deleteChannels,
     addChannel,
     duplicateChannel,
+    addZone,
+    deleteZone,
     updateZone,
     updateRadioId,
     updateTextMessage,
     updateDigitalContact,
     updateAprsSettings,
+    addScanList,
+    deleteScanList,
     updateScanList,
     updateGroupList,
     updateAnalogContact,

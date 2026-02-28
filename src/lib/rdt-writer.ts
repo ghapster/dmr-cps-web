@@ -173,6 +173,70 @@ export function createDefaultChannel(channels: Channel[]): Channel {
 }
 
 // ---------------------------------------------------------------------------
+// Create default zone
+// ---------------------------------------------------------------------------
+
+/**
+ * Creates a new default zone with no channels assigned.
+ */
+export function createDefaultZone(zones: Zone[]): Zone {
+  const newIndex = zones.length > 0
+    ? Math.max(...zones.map(z => z.index), 0) + 1
+    : 1;
+
+  const newName = 'New Zone';
+  const padding = zones.length > 0
+    ? new Uint8Array(zones[0]._padding)
+    : new Uint8Array(4);
+
+  const zone: Zone = {
+    index: newIndex,
+    name: newName,
+    channelIndices: [],
+    _padding: padding,
+    _raw: new Uint8Array(0), // placeholder, built below
+  };
+
+  zone._raw = serializeZone(zone);
+  return zone;
+}
+
+// ---------------------------------------------------------------------------
+// Create default scan list
+// ---------------------------------------------------------------------------
+
+/**
+ * Creates a new default scan list with no channels assigned.
+ */
+export function createDefaultScanList(scanLists: ScanList[]): ScanList {
+  const newIndex = scanLists.length > 0
+    ? Math.max(...scanLists.map(sl => sl.index), 0) + 1
+    : 1;
+
+  const newName = 'New Scan List';
+  const settings = scanLists.length > 0
+    ? new Uint8Array(scanLists[0]._settings)
+    : new Uint8Array(7);
+  const timing = scanLists.length > 0
+    ? new Uint8Array(scanLists[0]._timing)
+    : new Uint8Array(4);
+
+  const sl: ScanList = {
+    index: newIndex,
+    name: newName,
+    channelIndices: [],
+    entryFlags: [],
+    _settings: settings,
+    _timing: timing,
+    _raw: new Uint8Array(0), // placeholder, built below
+    _nameLen: newName.length,
+  };
+
+  sl._raw = serializeScanList(sl);
+  return sl;
+}
+
+// ---------------------------------------------------------------------------
 // Section-size calculator
 // ---------------------------------------------------------------------------
 

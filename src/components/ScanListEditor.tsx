@@ -5,9 +5,11 @@ interface Props {
   scanLists: ScanList[];
   channels: Channel[];
   onUpdateScanList: (index: number, changes: Partial<ScanList>) => void;
+  onAddScanList: () => number;
+  onDeleteScanList: (index: number) => void;
 }
 
-export function ScanListEditor({ scanLists, channels, onUpdateScanList }: Props) {
+export function ScanListEditor({ scanLists, channels, onUpdateScanList, onAddScanList, onDeleteScanList }: Props) {
   const [selected, setSelected] = useState<number | null>(
     scanLists.length > 0 ? scanLists[0].index : null
   );
@@ -49,7 +51,18 @@ export function ScanListEditor({ scanLists, channels, onUpdateScanList }: Props)
     <div className="flex gap-4 h-full">
       {/* Scan list selection */}
       <div className="w-56 shrink-0 space-y-1">
-        <h3 className="text-sm font-medium text-text-muted mb-3">Scan Lists</h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-medium text-text-muted">Scan Lists</h3>
+          <button
+            onClick={() => {
+              const idx = onAddScanList();
+              setSelected(idx);
+            }}
+            className="text-xs px-2 py-1 rounded-md bg-accent-green/15 text-accent-green hover:bg-accent-green/25 transition-colors"
+          >
+            + Add
+          </button>
+        </div>
         {scanLists.map(sl => (
           <button
             key={sl.index}
@@ -79,9 +92,21 @@ export function ScanListEditor({ scanLists, channels, onUpdateScanList }: Props)
         <div className="flex-1 flex gap-4">
           {/* Assigned channels */}
           <div className="flex-1 space-y-2">
-            <h3 className="text-sm font-medium text-text-muted">
-              {scanList.name} — {scanList.channelIndices.length} channels
-            </h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-medium text-text-muted">
+                {scanList.name} — {scanList.channelIndices.length} channels
+              </h3>
+              <button
+                onClick={() => {
+                  onDeleteScanList(scanList.index);
+                  const remaining = scanLists.filter(sl => sl.index !== scanList.index);
+                  setSelected(remaining.length > 0 ? remaining[0].index : null);
+                }}
+                className="text-xs px-2 py-1 rounded-md bg-accent-red/10 text-accent-red/70 hover:bg-accent-red/20 hover:text-accent-red transition-colors"
+              >
+                Delete
+              </button>
+            </div>
             <div className="overflow-auto rounded-xl border border-border max-h-[calc(100vh-200px)]" style={{ boxShadow: 'var(--shadow-sm)' }}>
               {scanList.channelIndices.map((chIdx, pos) => {
                 const ch = channelMap.get(chIdx);
