@@ -1,6 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { ActiveSection } from './lib/types';
-import { createDefaultChannel, createDefaultZone, createDefaultScanList, createDefaultGroupList } from './lib/rdt-writer';
+import {
+  createDefaultChannel, createDefaultZone, createDefaultScanList, createDefaultGroupList,
+  createDefaultRadioId, createDefaultAnalogContact, createDefaultTextMessage,
+  createDefaultRoamingChannel, createDefaultRoamingZone,
+} from './lib/rdt-writer';
 import { useCodeplug } from './hooks/useCodeplug';
 import { FileToolbar } from './components/FileToolbar';
 import { AppShell } from './components/AppShell';
@@ -20,11 +24,15 @@ function App() {
     codeplug, fileName, dirty, issues,
     openFile, saveFile, exportCsv,
     updateChannel, deleteChannels, addChannel, duplicateChannel,
-    addZone, deleteZone, updateZone, updateRadioId, updateTextMessage,
+    addZone, deleteZone, updateZone,
+    addRadioId, deleteRadioId, updateRadioId,
+    addTextMessage, deleteTextMessage, updateTextMessage,
     updateDigitalContact, updateAprsSettings,
     addScanList, deleteScanList, updateScanList,
     addGroupList, deleteGroupList, updateGroupList,
-    updateAnalogContact, updateRoamingChannel, updateRoamingZone,
+    addAnalogContact, deleteAnalogContact, updateAnalogContact,
+    addRoamingChannel, deleteRoamingChannel, updateRoamingChannel,
+    addRoamingZone, deleteRoamingZone, updateRoamingZone,
     undo, redo, canUndo, canRedo,
   } = useCodeplug();
 
@@ -127,6 +135,8 @@ function App() {
             radioIds={codeplug.radioIds}
             analogContacts={[]}
             onUpdateRadioId={updateRadioId}
+            onAddRadioId={() => { addRadioId(createDefaultRadioId(codeplug.radioIds)); }}
+            onDeleteRadioId={deleteRadioId}
           />
         );
       case 'contacts':
@@ -136,6 +146,8 @@ function App() {
             analogContacts={codeplug.analogContacts}
             onUpdateRadioId={updateRadioId}
             onUpdateAnalogContact={updateAnalogContact}
+            onAddAnalogContact={() => { addAnalogContact(createDefaultAnalogContact(codeplug.analogContacts)); }}
+            onDeleteAnalogContact={deleteAnalogContact}
           />
         );
       case 'scanLists':
@@ -160,6 +172,8 @@ function App() {
           <TextMessageEditor
             textMessages={codeplug.textMessages}
             onUpdateTextMessage={updateTextMessage}
+            onAddTextMessage={() => { addTextMessage(createDefaultTextMessage(codeplug.textMessages)); }}
+            onDeleteTextMessage={deleteTextMessage}
           />
         );
       case 'groupLists':
@@ -186,6 +200,10 @@ function App() {
             roamingZones={codeplug.roamingZones}
             onUpdateRoamingChannel={updateRoamingChannel}
             onUpdateRoamingZone={updateRoamingZone}
+            onAddRoamingChannel={() => { addRoamingChannel(createDefaultRoamingChannel(codeplug.roamingChannels)); }}
+            onDeleteRoamingChannel={deleteRoamingChannel}
+            onAddRoamingZone={() => { addRoamingZone(createDefaultRoamingZone(codeplug.roamingZones)); }}
+            onDeleteRoamingZone={deleteRoamingZone}
           />
         );
       case 'settings':

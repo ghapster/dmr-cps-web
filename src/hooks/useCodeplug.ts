@@ -126,12 +126,40 @@ export function useCodeplug() {
     }));
   }, [updateCodeplug]);
 
+  const addRadioId = useCallback((radioId: RadioId) => {
+    updateCodeplug(cp => ({
+      ...cp,
+      radioIds: [...cp.radioIds, radioId],
+    }));
+  }, [updateCodeplug]);
+
+  const deleteRadioId = useCallback((index: number) => {
+    updateCodeplug(cp => ({
+      ...cp,
+      radioIds: cp.radioIds.filter(r => r.index !== index),
+    }));
+  }, [updateCodeplug]);
+
   const updateRadioId = useCallback((index: number, changes: Partial<RadioId>) => {
     updateCodeplug(cp => ({
       ...cp,
       radioIds: cp.radioIds.map(r =>
         r.index === index ? { ...r, ...changes } : r
       ),
+    }));
+  }, [updateCodeplug]);
+
+  const addTextMessage = useCallback((msg: { index: number; text: string }) => {
+    updateCodeplug(cp => ({
+      ...cp,
+      textMessages: [...cp.textMessages, msg],
+    }));
+  }, [updateCodeplug]);
+
+  const deleteTextMessage = useCallback((index: number) => {
+    updateCodeplug(cp => ({
+      ...cp,
+      textMessages: cp.textMessages.filter(m => m.index !== index),
     }));
   }, [updateCodeplug]);
 
@@ -206,6 +234,20 @@ export function useCodeplug() {
     }));
   }, [updateCodeplug]);
 
+  const addAnalogContact = useCallback((contact: AnalogContact) => {
+    updateCodeplug(cp => ({
+      ...cp,
+      analogContacts: [...cp.analogContacts, contact],
+    }));
+  }, [updateCodeplug]);
+
+  const deleteAnalogContact = useCallback((index: number) => {
+    updateCodeplug(cp => ({
+      ...cp,
+      analogContacts: cp.analogContacts.filter(ac => ac.index !== index),
+    }));
+  }, [updateCodeplug]);
+
   const updateAnalogContact = useCallback((index: number, changes: Partial<AnalogContact>) => {
     updateCodeplug(cp => ({
       ...cp,
@@ -215,12 +257,40 @@ export function useCodeplug() {
     }));
   }, [updateCodeplug]);
 
+  const addRoamingChannel = useCallback((rc: RoamingChannel) => {
+    updateCodeplug(cp => ({
+      ...cp,
+      roamingChannels: [...cp.roamingChannels, rc],
+    }));
+  }, [updateCodeplug]);
+
+  const deleteRoamingChannel = useCallback((index: number) => {
+    updateCodeplug(cp => ({
+      ...cp,
+      roamingChannels: cp.roamingChannels.filter(rc => rc.index !== index),
+    }));
+  }, [updateCodeplug]);
+
   const updateRoamingChannel = useCallback((index: number, changes: Partial<RoamingChannel>) => {
     updateCodeplug(cp => ({
       ...cp,
       roamingChannels: cp.roamingChannels.map(rc =>
         rc.index === index ? { ...rc, ...changes } : rc
       ),
+    }));
+  }, [updateCodeplug]);
+
+  const addRoamingZone = useCallback((rz: RoamingZone) => {
+    updateCodeplug(cp => ({
+      ...cp,
+      roamingZones: [...cp.roamingZones, rz],
+    }));
+  }, [updateCodeplug]);
+
+  const deleteRoamingZone = useCallback((index: number) => {
+    updateCodeplug(cp => ({
+      ...cp,
+      roamingZones: cp.roamingZones.filter(rz => rz.index !== index),
     }));
   }, [updateCodeplug]);
 
@@ -263,7 +333,11 @@ export function useCodeplug() {
     addZone,
     deleteZone,
     updateZone,
+    addRadioId,
+    deleteRadioId,
     updateRadioId,
+    addTextMessage,
+    deleteTextMessage,
     updateTextMessage,
     updateDigitalContact,
     updateAprsSettings,
@@ -273,8 +347,14 @@ export function useCodeplug() {
     addGroupList,
     deleteGroupList,
     updateGroupList,
+    addAnalogContact,
+    deleteAnalogContact,
     updateAnalogContact,
+    addRoamingChannel,
+    deleteRoamingChannel,
     updateRoamingChannel,
+    addRoamingZone,
+    deleteRoamingZone,
     updateRoamingZone,
     updateCodeplug,
     undo,

@@ -6,6 +6,9 @@ import type {
   ScanList,
   GroupList,
   AnalogContact,
+  TextMessage,
+  RoamingChannel,
+  RoamingZone,
   AprsSettings,
   RepeaterMode,
   ChannelMode,
@@ -272,6 +275,188 @@ export function createDefaultGroupList(groupLists: GroupList[]): GroupList {
     _settings: settings,
     _entryHeader: entryHeader,
     _entryExtras: [],
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Create default radio ID
+// ---------------------------------------------------------------------------
+
+/**
+ * Creates a new default radio ID.
+ */
+export function createDefaultRadioId(radioIds: RadioId[]): RadioId {
+  const newIndex = radioIds.length > 0
+    ? Math.max(...radioIds.map(r => r.index), 0) + 1
+    : 1;
+
+  const newName = 'New Radio';
+  const nameTotalBytes = nameFieldSize(newName.length);
+  const recordSize = 1 + 3 + nameTotalBytes;
+  const buf = new Uint8Array(recordSize);
+  const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+
+  // Index
+  view.setUint8(0, newIndex);
+  // DMR ID = 0 (user must fill in)
+  writeUint24LE(view, 1, 0);
+  // Name
+  writeAscii(view, 4, newName, nameTotalBytes);
+
+  return {
+    index: newIndex,
+    dmrId: 0,
+    name: newName,
+    _raw: buf,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Create default analog contact (DTMF)
+// ---------------------------------------------------------------------------
+
+/**
+ * Creates a new default DTMF contact.
+ */
+export function createDefaultAnalogContact(contacts: AnalogContact[]): AnalogContact {
+  const newIndex = contacts.length > 0
+    ? Math.max(...contacts.map(ac => ac.index), 0) + 1
+    : 1;
+
+  const newName = 'New Contact';
+  const newCode = '';
+  const codeLen = contacts.length > 0 ? contacts[0]._codeLen : 8;
+
+  const nameTotalBytes = nameFieldSize(newName.length);
+  const recordSize = 1 + 1 + codeLen + nameTotalBytes;
+  const buf = new Uint8Array(recordSize);
+  const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+
+  view.setUint8(0, newIndex);
+  view.setUint8(1, codeLen);
+  writeAscii(view, 2, newCode, codeLen);
+  writeAscii(view, 2 + codeLen, newName, nameTotalBytes);
+
+  return {
+    index: newIndex,
+    name: newName,
+    code: newCode,
+    _raw: buf,
+    _nameLen: newName.length,
+    _codeLen: codeLen,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Create default text message
+// ---------------------------------------------------------------------------
+
+/**
+ * Creates a new default text message.
+ */
+export function createDefaultTextMessage(messages: TextMessage[]): TextMessage {
+  const newIndex = messages.length > 0
+    ? Math.max(...messages.map(m => m.index), 0) + 1
+    : 0;
+
+  return {
+    index: newIndex,
+    text: 'New Message',
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Create default roaming channel
+// ---------------------------------------------------------------------------
+
+/**
+ * Creates a new default roaming channel.
+ * Copies structure from existing roaming channel if available.
+ */
+export function createDefaultRoamingChannel(channels: RoamingChannel[]): RoamingChannel {
+  const newIndex = channels.length > 0
+    ? Math.max(...channels.map(rc => rc.index), 0) + 1
+    : 1;
+
+  const newName = `Roaming CH ${newIndex}`;
+
+  if (channels.length > 0) {
+    // Copy template from first existing channel, patch name
+    const template = channels[0]._raw;
+    const buf = new Uint8Array(template.byteLength);
+    buf.set(template);
+    // Write new name at offset 0
+    for (let i = 0; i < channels[0]._nameLen + 1; i++) {
+      buf[i] = i < newName.length ? newName.charCodeAt(i) : 0;
+    }
+    return {
+      index: newIndex,
+      name: newName,
+      _raw: buf,
+      _nameLen: newName.length,
+    };
+  }
+
+  // No template — build minimal record (name + null + padding)
+  const recordSize = newName.length + 1 + 12; // name + null + config bytes
+  const buf = new Uint8Array(recordSize);
+  for (let i = 0; i < newName.length; i++) buf[i] = newName.charCodeAt(i);
+  buf[newName.length] = 0;
+
+  return {
+    index: newIndex,
+    name: newName,
+    _raw: buf,
+    _nameLen: newName.length,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Create default roaming zone
+// ---------------------------------------------------------------------------
+
+/**
+ * Creates a new default roaming zone.
+ * Copies structure from existing roaming zone if available.
+ */
+export function createDefaultRoamingZone(zones: RoamingZone[]): RoamingZone {
+  const newIndex = zones.length > 0
+    ? Math.max(...zones.map(rz => rz.index), 0) + 1
+    : 0;
+
+  const newName = `ROAM ZONE ${newIndex + 1}`;
+
+  if (zones.length > 0) {
+    // Copy template from first existing zone, patch name and clear channels
+    const template = zones[0]._raw;
+    const buf = new Uint8Array(template.byteLength);
+    buf.set(template);
+    // Write new name at offset 0
+    for (let i = 0; i < zones[0]._nameLen + 1; i++) {
+      buf[i] = i < newName.length ? newName.charCodeAt(i) : 0;
+    }
+    // Set channel count to 0 (after name + null)
+    buf[newName.length + 1] = 0;
+    return {
+      index: newIndex,
+      name: newName,
+      channelIndices: [],
+      _raw: buf,
+      _nameLen: newName.length,
+    };
+  }
+
+  // No template
+  const recordSize = newName.length + 1 + 2; // name + null + count + padding
+  const buf = new Uint8Array(recordSize);
+  for (let i = 0; i < newName.length; i++) buf[i] = newName.charCodeAt(i);
+
+  return {
+    index: newIndex,
+    name: newName,
+    channelIndices: [],
+    _raw: buf,
+    _nameLen: newName.length,
   };
 }
 

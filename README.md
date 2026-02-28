@@ -19,14 +19,14 @@ A browser-based codeplug editor for the **Anytone D578UV** DMR radio. Open, edit
 |---------|--------|-------|
 | Channels | **Editable** | Inline editing (name, RX/TX freq, mode, power, CC, TS). Sort, filter by mode/search, multi-select delete, add new, duplicate. |
 | Zones | **Editable** | Add/delete zones, add/remove/reorder channels within zones. |
-| Radio IDs | **Editable** | Edit DMR ID and name. |
-| DTMF Contacts | **Editable** | Edit DTMF code and name (length capped at original). |
+| Radio IDs | **Editable** | Add/delete radio IDs, edit DMR ID and name. |
+| DTMF Contacts | **Editable** | Add/delete contacts, edit DTMF code and name. |
 | Digital Contacts | **Editable** | Edit DMR ID and Call Type (group/private). Names use proprietary encoding — not yet decoded. |
 | Scan Lists | **Editable** | Add/delete scan lists, add/remove/reorder channels within scan lists. |
-| Text Messages | **Editable** | Edit message text (144 char max). |
+| Text Messages | **Editable** | Add/delete messages, edit message text (144 char max). |
 | Group Lists | **Editable** | Add/delete/rename group lists, add/remove contacts within group lists. |
 | APRS | **Editable** | GPS message, destination, callsign, SSID, paths, comment. Field length limits enforced. |
-| Roaming | **Editable** | Edit roaming channel and zone names (length capped at original). |
+| Roaming | **Editable** | Add/delete roaming channels and zones, edit names. |
 | Settings | Read-only | File header info + hex dump of settings block. |
 
 ## Tech Stack
