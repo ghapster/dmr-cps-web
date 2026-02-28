@@ -1,6 +1,39 @@
 import { useState } from 'react';
 import type { Zone, Channel } from '../lib/types';
 
+function EditableName({ value, onCommit, maxLen = 16 }: { value: string; onCommit: (val: string) => void; maxLen?: number }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+
+  if (!editing) {
+    return (
+      <span
+        className="cursor-pointer hover:bg-surface-lighter px-1.5 py-0.5 rounded-md"
+        onClick={() => { setDraft(value); setEditing(true); }}
+        title="Click to rename"
+      >
+        {value}
+      </span>
+    );
+  }
+
+  return (
+    <input
+      autoFocus
+      type="text"
+      value={draft}
+      maxLength={maxLen}
+      onChange={e => setDraft(e.target.value)}
+      onBlur={() => { onCommit(draft); setEditing(false); }}
+      onKeyDown={e => {
+        if (e.key === 'Enter') { onCommit(draft); setEditing(false); }
+        if (e.key === 'Escape') setEditing(false);
+      }}
+      className="bg-surface-lighter text-text text-sm px-1.5 py-0.5 rounded-md border border-border outline-none"
+    />
+  );
+}
+
 interface Props {
   zones: Zone[];
   channels: Channel[];
@@ -73,7 +106,10 @@ export function ZoneEditor({ zones, channels, onUpdateZone, onAddZone, onDeleteZ
               {selectedZone === z.index && (
                 <div className="w-0.5 h-4 bg-primary rounded-full shrink-0" />
               )}
-              <span>{z.name || `Zone ${z.index}`}</span>
+              <EditableName
+                value={z.name || `Zone ${z.index}`}
+                onCommit={val => onUpdateZone(z.index, { name: val.slice(0, 16) })}
+              />
             </div>
             <span className="text-xs text-text-dimmed">{z.channelIndices.length}</span>
           </button>
@@ -89,8 +125,12 @@ export function ZoneEditor({ zones, channels, onUpdateZone, onAddZone, onDeleteZ
           {/* Assigned channels */}
           <div className="flex-1 space-y-2">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-medium text-text-muted">
-                {zone.name} — {zone.channelIndices.length} channels
+              <h3 className="text-sm font-medium text-text-muted flex items-center gap-1">
+                <EditableName
+                  value={zone.name}
+                  onCommit={val => onUpdateZone(zone.index, { name: val.slice(0, 16) })}
+                />
+                <span>— {zone.channelIndices.length} channels</span>
               </h3>
               <button
                 onClick={() => {

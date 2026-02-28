@@ -1,6 +1,39 @@
 import { useState } from 'react';
 import type { ScanList, Channel } from '../lib/types';
 
+function EditableName({ value, onCommit, maxLen = 16 }: { value: string; onCommit: (val: string) => void; maxLen?: number }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+
+  if (!editing) {
+    return (
+      <span
+        className="cursor-pointer hover:bg-surface-lighter px-1.5 py-0.5 rounded-md"
+        onClick={() => { setDraft(value); setEditing(true); }}
+        title="Click to rename"
+      >
+        {value}
+      </span>
+    );
+  }
+
+  return (
+    <input
+      autoFocus
+      type="text"
+      value={draft}
+      maxLength={maxLen}
+      onChange={e => setDraft(e.target.value)}
+      onBlur={() => { onCommit(draft); setEditing(false); }}
+      onKeyDown={e => {
+        if (e.key === 'Enter') { onCommit(draft); setEditing(false); }
+        if (e.key === 'Escape') setEditing(false);
+      }}
+      className="bg-surface-lighter text-text text-sm px-1.5 py-0.5 rounded-md border border-border outline-none"
+    />
+  );
+}
+
 interface Props {
   scanLists: ScanList[];
   channels: Channel[];
@@ -77,7 +110,10 @@ export function ScanListEditor({ scanLists, channels, onUpdateScanList, onAddSca
               {selected === sl.index && (
                 <div className="w-0.5 h-4 bg-primary rounded-full shrink-0" />
               )}
-              <span>{sl.name || `Scan List ${sl.index}`}</span>
+              <EditableName
+                value={sl.name || `Scan List ${sl.index}`}
+                onCommit={val => { const n = val.slice(0, 16); onUpdateScanList(sl.index, { name: n, _nameLen: n.length }); }}
+              />
             </div>
             <span className="text-xs text-text-dimmed">{sl.channelIndices.length}</span>
           </button>
@@ -93,8 +129,12 @@ export function ScanListEditor({ scanLists, channels, onUpdateScanList, onAddSca
           {/* Assigned channels */}
           <div className="flex-1 space-y-2">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-medium text-text-muted">
-                {scanList.name} — {scanList.channelIndices.length} channels
+              <h3 className="text-sm font-medium text-text-muted flex items-center gap-1">
+                <EditableName
+                  value={scanList.name}
+                  onCommit={val => { const n = val.slice(0, 16); onUpdateScanList(scanList.index, { name: n, _nameLen: n.length }); }}
+                />
+                <span>— {scanList.channelIndices.length} channels</span>
               </h3>
               <button
                 onClick={() => {
