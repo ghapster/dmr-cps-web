@@ -8,10 +8,10 @@ import { ZoneEditor } from './components/ZoneEditor';
 import { ContactTable } from './components/ContactTable';
 import { ScanListEditor } from './components/ScanListEditor';
 import { SettingsViewer } from './components/SettingsViewer';
-import { DigitalContactTable } from './components/DigitalContactTable';
+import { DigitalContactEditor } from './components/DigitalContactEditor';
 import { TextMessageEditor } from './components/TextMessageEditor';
 import { GroupListViewer } from './components/GroupListViewer';
-import { AprsViewer } from './components/AprsViewer';
+import { AprsEditor } from './components/AprsEditor';
 import { RoamingViewer } from './components/RoamingViewer';
 
 function App() {
@@ -20,6 +20,7 @@ function App() {
     openFile, saveFile, exportCsv,
     updateChannel, deleteChannels, duplicateChannel,
     updateZone, updateRadioId, updateTextMessage,
+    updateDigitalContact, updateAprsSettings,
     undo, redo, canUndo, canRedo,
   } = useCodeplug();
 
@@ -127,8 +128,9 @@ function App() {
         );
       case 'digitalContacts':
         return (
-          <DigitalContactTable
+          <DigitalContactEditor
             digitalContacts={codeplug.digitalContacts}
+            onUpdateDigitalContact={updateDigitalContact}
           />
         );
       case 'textMessages':
@@ -147,8 +149,9 @@ function App() {
         );
       case 'aprs':
         return (
-          <AprsViewer
+          <AprsEditor
             aprsSettings={codeplug.aprsSettings}
+            onUpdateAprs={updateAprsSettings}
           />
         );
       case 'roaming':

@@ -70,6 +70,7 @@ export interface DigitalContact {
   dmrId: number;           // Talk Group ID (group) or DMR ID (private), uint24_le from pre-bytes
   callType: 'group' | 'private' | 'all';
   _raw: Uint8Array;
+  _blobOffset: number;     // byte offset of this record within _digitalContactsRaw
 }
 
 export interface TextMessage {
@@ -84,6 +85,11 @@ export interface GroupList {
   _raw: Uint8Array;
 }
 
+export interface AprsFieldOffset {
+  pos: number;      // byte offset relative to section start
+  maxLen: number;   // max string length (allocated space in binary)
+}
+
 export interface AprsSettings {
   gpsMessage: string;
   callsign: string;
@@ -92,6 +98,14 @@ export interface AprsSettings {
   paths: string[];          // e.g. ["WIDE1-1", "WIDE2-1"]
   comment: string;
   _raw: Uint8Array;
+  _fieldOffsets: {
+    gpsMessage: AprsFieldOffset;
+    destination: AprsFieldOffset;
+    callsign: AprsFieldOffset;
+    ssid: { pos: number };
+    paths: AprsFieldOffset;
+    comment: AprsFieldOffset;
+  };
 }
 
 export interface RoamingChannel {

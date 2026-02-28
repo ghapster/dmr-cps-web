@@ -485,7 +485,8 @@ function parseDigitalContacts(
     const callType = callTypeByte === 0x10 ? 'group' as const : 'private' as const;
     const _raw = new Uint8Array(buffer.slice(recStart, recEnd));
 
-    digitalContacts.push({ index, dmrId, callType, _raw });
+    const _blobOffset = recStart - offset; // offset relative to _digitalContactsRaw start
+    digitalContacts.push({ index, dmrId, callType, _raw, _blobOffset });
   }
 
   return { digitalContacts, _digitalContactsRaw, bytesConsumed: totalBytes };
@@ -667,6 +668,32 @@ function parseAprsSettings(
 
   const comment = stringEntries.length > 3 ? stringEntries[3].text : '';
 
+  // Compute field offsets relative to sectionStart for the writer to patch
+  const _fieldOffsets: AprsSettings['_fieldOffsets'] = {
+    gpsMessage: { pos: 0, maxLen: gpsMessage.length },
+    destination: {
+      pos: stringEntries.length > 0 ? stringEntries[0].startPos - sectionStart : 0,
+      maxLen: stringEntries.length > 0 ? stringEntries[0].text.length : 0,
+    },
+    callsign: {
+      pos: stringEntries.length > 1 ? stringEntries[1].startPos - sectionStart : 0,
+      maxLen: stringEntries.length > 1 ? stringEntries[1].text.length : 0,
+    },
+    ssid: {
+      pos: stringEntries.length > 1
+        ? (stringEntries[1].startPos + stringEntries[1].text.length) - sectionStart
+        : 0,
+    },
+    paths: {
+      pos: stringEntries.length > 2 ? stringEntries[2].startPos - sectionStart : 0,
+      maxLen: stringEntries.length > 2 ? stringEntries[2].text.length : 0,
+    },
+    comment: {
+      pos: stringEntries.length > 3 ? stringEntries[3].startPos - sectionStart : 0,
+      maxLen: stringEntries.length > 3 ? stringEntries[3].text.length : 0,
+    },
+  };
+
   const aprsSettings: AprsSettings = {
     gpsMessage,
     callsign,
@@ -675,6 +702,7 @@ function parseAprsSettings(
     paths,
     comment,
     _raw: _aprsRaw,
+    _fieldOffsets,
   };
 
   return { aprsSettings, _aprsRaw, bytesConsumed };

@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
-import type { Codeplug, Channel, Zone, RadioId, ValidationIssue } from '../lib/types';
+import type { Codeplug, Channel, Zone, RadioId, DigitalContact, AprsSettings, ValidationIssue } from '../lib/types';
 import { parseRdt } from '../lib/rdt-parser';
 import { writeRdt, downloadBlob } from '../lib/rdt-writer';
 import { validateCodeplug } from '../lib/validator';
@@ -130,6 +130,22 @@ export function useCodeplug() {
     }));
   }, [updateCodeplug]);
 
+  const updateDigitalContact = useCallback((index: number, changes: Partial<DigitalContact>) => {
+    updateCodeplug(cp => ({
+      ...cp,
+      digitalContacts: cp.digitalContacts.map(dc =>
+        dc.index === index ? { ...dc, ...changes } : dc
+      ),
+    }));
+  }, [updateCodeplug]);
+
+  const updateAprsSettings = useCallback((changes: Partial<AprsSettings>) => {
+    updateCodeplug(cp => ({
+      ...cp,
+      aprsSettings: { ...cp.aprsSettings, ...changes },
+    }));
+  }, [updateCodeplug]);
+
   const undo = useCallback(() => {
     setState(s => {
       if (!s.codeplug || undoStack.current.length === 0) return s;
@@ -160,6 +176,8 @@ export function useCodeplug() {
     updateZone,
     updateRadioId,
     updateTextMessage,
+    updateDigitalContact,
+    updateAprsSettings,
     updateCodeplug,
     undo,
     redo,

@@ -3,6 +3,7 @@ import type {
   Channel,
   RadioId,
   Zone,
+  AprsSettings,
   RepeaterMode,
   ChannelMode,
   PowerLevel,
@@ -65,6 +66,13 @@ function writeUint24LE(view: DataView, offset: number, value: number): void {
   view.setUint8(offset + 2, (value >> 16) & 0xff);
 }
 
+/** Overwrite a string field in a buffer: writes ASCII text then null-pads remaining bytes. */
+function patchString(buf: Uint8Array, offset: number, maxLen: number, text: string): void {
+  for (let i = 0; i < maxLen; i++) {
+    buf[offset + i] = i < text.length ? text.charCodeAt(i) : 0;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Section-size calculator
 // ---------------------------------------------------------------------------
@@ -108,7 +116,7 @@ function computeTotalSize(codeplug: Codeplug): number {
     size += ac._raw.byteLength;
   }
 
-  // Digital contacts (entire section blob)
+  // Digital contacts (entire section blob, patched in place)
   size += codeplug._digitalContactsRaw.byteLength;
 
   // Text messages (rebuilt from editable data)
@@ -244,6 +252,45 @@ function serializeZone(zone: Zone): Uint8Array {
 }
 
 // ---------------------------------------------------------------------------
+// APRS settings serializer
+// ---------------------------------------------------------------------------
+
+function serializeAprsSettings(aprs: AprsSettings): Uint8Array {
+  // Start with a copy of the raw section (preserves config bytes and layout)
+  const buf = new Uint8Array(aprs._raw.byteLength);
+  buf.set(aprs._raw);
+
+  const offsets = aprs._fieldOffsets;
+
+  // Patch each string field at its known position
+  if (offsets.gpsMessage.maxLen > 0) {
+    patchString(buf, offsets.gpsMessage.pos, offsets.gpsMessage.maxLen, aprs.gpsMessage);
+  }
+  if (offsets.destination.maxLen > 0) {
+    patchString(buf, offsets.destination.pos, offsets.destination.maxLen, aprs.destination);
+  }
+  if (offsets.callsign.maxLen > 0) {
+    patchString(buf, offsets.callsign.pos, offsets.callsign.maxLen, aprs.callsign);
+  }
+
+  // SSID — single byte
+  if (offsets.ssid.pos > 0) {
+    buf[offsets.ssid.pos] = aprs.ssid & 0x0f;
+  }
+
+  // Paths — concatenate back into single string (e.g. "WIDE1-1WIDE2-1")
+  if (offsets.paths.maxLen > 0) {
+    patchString(buf, offsets.paths.pos, offsets.paths.maxLen, aprs.paths.join(''));
+  }
+
+  if (offsets.comment.maxLen > 0) {
+    patchString(buf, offsets.comment.pos, offsets.comment.maxLen, aprs.comment);
+  }
+
+  return buf;
+}
+
+// ---------------------------------------------------------------------------
 // Main writer
 // ---------------------------------------------------------------------------
 
@@ -344,9 +391,18 @@ export function writeRdt(codeplug: Codeplug): ArrayBuffer {
   }
 
   // -----------------------------------------------------------------------
-  // 8. Digital Contacts (copy entire section blob verbatim)
+  // 8. Digital Contacts (copy blob, patch editable fields in place)
   // -----------------------------------------------------------------------
   bytes.set(codeplug._digitalContactsRaw, pos);
+  for (const dc of codeplug.digitalContacts) {
+    const recPos = pos + dc._blobOffset;
+    // DMR ID — uint24_le at bytes 0-2 of record
+    view.setUint8(recPos, dc.dmrId & 0xff);
+    view.setUint8(recPos + 1, (dc.dmrId >> 8) & 0xff);
+    view.setUint8(recPos + 2, (dc.dmrId >> 16) & 0xff);
+    // Call type — byte 5 (0x10 = group, 0x00 = private)
+    view.setUint8(recPos + 5, dc.callType === 'group' ? 0x10 : 0x00);
+  }
   pos += codeplug._digitalContactsRaw.byteLength;
 
   // -----------------------------------------------------------------------
@@ -376,10 +432,13 @@ export function writeRdt(codeplug: Codeplug): ArrayBuffer {
   pos += codeplug._groupListsRaw.byteLength;
 
   // -----------------------------------------------------------------------
-  // 11. APRS Settings (copy entire section blob verbatim)
+  // 11. APRS Settings (rebuilt from patched editable data)
   // -----------------------------------------------------------------------
-  bytes.set(codeplug._aprsRaw, pos);
-  pos += codeplug._aprsRaw.byteLength;
+  {
+    const aprsData = serializeAprsSettings(codeplug.aprsSettings);
+    bytes.set(aprsData, pos);
+    pos += aprsData.byteLength;
+  }
 
   // -----------------------------------------------------------------------
   // 12. Roaming (copy entire section blob verbatim)
