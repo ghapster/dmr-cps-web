@@ -201,6 +201,10 @@ export function useCodeplug() {
     }));
   }, [updateCodeplug]);
 
+  const updateSettings = useCallback((newBlock: Uint8Array) => {
+    updateCodeplug(cp => ({ ...cp, settingsBlock: newBlock }));
+  }, [updateCodeplug]);
+
   const addScanList = useCallback((scanList: ScanList) => {
     updateCodeplug(cp => ({
       ...cp,
@@ -393,6 +397,7 @@ export function useCodeplug() {
     updateTextMessage,
     updateDigitalContact,
     updateAprsSettings,
+    updateSettings,
     addScanList,
     deleteScanList,
     updateScanList,

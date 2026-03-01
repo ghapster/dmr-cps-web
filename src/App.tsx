@@ -33,7 +33,7 @@ function App() {
     addZone, deleteZone, updateZone,
     addRadioId, deleteRadioId, updateRadioId,
     addTextMessage, deleteTextMessage, updateTextMessage,
-    updateDigitalContact, updateAprsSettings,
+    updateDigitalContact, updateAprsSettings, updateSettings,
     addScanList, deleteScanList, updateScanList,
     addGroupList, deleteGroupList, updateGroupList,
     addAnalogContact, deleteAnalogContact, updateAnalogContact,
@@ -283,6 +283,7 @@ function App() {
             header={codeplug.header}
             settingsBlock={codeplug.settingsBlock}
             onSyncNow={handleSyncNow}
+            onUpdateSettings={updateSettings}
           />
         );
     }
