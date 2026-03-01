@@ -3,6 +3,7 @@ import type { Channel, ChannelMode } from '../lib/types';
 import { ConfirmDialog } from './ConfirmDialog';
 import { useToast } from './Toast';
 import { RepeaterLookup } from './RepeaterLookup';
+import { ScannerLookup } from './ScannerLookup';
 
 type SortKey = 'index' | 'name' | 'rxFrequency' | 'txFrequency' | 'mode' | 'power' | 'colorCode' | 'timeSlot';
 type SortDir = 'asc' | 'desc';
@@ -86,6 +87,7 @@ export function ChannelTable({ channels, onUpdateChannel, onDeleteChannels, onDu
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const [showRepeaterLookup, setShowRepeaterLookup] = useState(false);
+  const [showScannerLookup, setShowScannerLookup] = useState(false);
 
   // Scroll into view when a row is highlighted
   const highlightRef = useCallback((el: HTMLTableRowElement | null) => {
@@ -198,12 +200,20 @@ export function ChannelTable({ channels, onUpdateChannel, onDeleteChannels, onDu
           + Add Channel
         </button>
         {onImportChannels && (
-          <button
-            onClick={() => setShowRepeaterLookup(true)}
-            className="px-4 py-1.5 text-sm bg-primary/20 text-primary-light hover:bg-primary/30 rounded-md transition-colors"
-          >
-            Repeater Lookup
-          </button>
+          <>
+            <button
+              onClick={() => setShowRepeaterLookup(true)}
+              className="px-4 py-1.5 text-sm bg-primary/20 text-primary-light hover:bg-primary/30 rounded-md transition-colors"
+            >
+              Repeater Lookup
+            </button>
+            <button
+              onClick={() => setShowScannerLookup(true)}
+              className="px-4 py-1.5 text-sm bg-primary/20 text-primary-light hover:bg-primary/30 rounded-md transition-colors"
+            >
+              Scanner Lookup
+            </button>
+          </>
         )}
         <div className="flex-1" />
         <span className="text-xs text-text-dimmed">{sorted.length} of {channels.length} channels</span>
@@ -389,6 +399,17 @@ export function ChannelTable({ channels, onUpdateChannel, onDeleteChannels, onDu
             onImportChannels(partials);
             setShowRepeaterLookup(false);
             toast(`${partials.length} channel${partials.length > 1 ? 's' : ''} imported`);
+          }}
+        />
+      )}
+
+      {showScannerLookup && onImportChannels && (
+        <ScannerLookup
+          onClose={() => setShowScannerLookup(false)}
+          onImport={(partials: Partial<Channel>[]) => {
+            onImportChannels(partials);
+            setShowScannerLookup(false);
+            toast(`${partials.length} scanner channel${partials.length > 1 ? 's' : ''} imported`);
           }}
         />
       )}

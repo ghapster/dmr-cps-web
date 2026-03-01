@@ -104,6 +104,28 @@ export function clearGitHubToken(): void {
 }
 
 // ---------------------------------------------------------------------------
+// RadioReference credentials (localStorage)
+// ---------------------------------------------------------------------------
+
+const RR_CREDS_KEY = 'dmrcps_rr_creds';
+
+export function getRRCredentials(): { username: string; password: string; appKey: string } | null {
+  try {
+    const raw = localStorage.getItem(RR_CREDS_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch { return null; }
+}
+
+export function setRRCredentials(creds: { username: string; password: string; appKey: string }): void {
+  localStorage.setItem(RR_CREDS_KEY, JSON.stringify(creds));
+}
+
+export function clearRRCredentials(): void {
+  localStorage.removeItem(RR_CREDS_KEY);
+}
+
+// ---------------------------------------------------------------------------
 // GitHub sync — push (requires PAT with repo scope)
 // ---------------------------------------------------------------------------
 
