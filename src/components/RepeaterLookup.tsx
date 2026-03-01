@@ -167,7 +167,7 @@ export function RepeaterLookup({ onClose, onImport }: Props) {
             <table className="w-full text-sm">
               <thead className="bg-surface sticky top-0">
                 <tr>
-                  <th className="px-3 py-2 w-8">
+                  <th className="px-3 py-2 w-8" onClick={e => e.stopPropagation()}>
                     <input
                       type="checkbox"
                       checked={selected.size === results.length && results.length > 0}
@@ -191,7 +191,7 @@ export function RepeaterLookup({ onClose, onImport }: Props) {
                     }`}
                     onClick={() => toggleSelect(r.id)}
                   >
-                    <td className="px-3 py-2">
+                    <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
                       <input
                         type="checkbox"
                         checked={selected.has(r.id)}
