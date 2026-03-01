@@ -13,7 +13,6 @@ const US_STATES = [
 ];
 
 interface RepeaterResult {
-  id: number;
   callsign: string;
   frequency: number;
   offset: number;
@@ -33,7 +32,7 @@ export function RepeaterLookup({ onClose, onImport }: Props) {
   const [results, setResults] = useState<RepeaterResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [selected, setSelected] = useState<Set<number>>(new Set()); // indexes into results[]
 
   const handleKey = useCallback((e: KeyboardEvent) => {
     if (e.key === 'Escape') onClose();
@@ -69,7 +68,6 @@ export function RepeaterLookup({ onClose, onImport }: Props) {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       const items: RepeaterResult[] = (data.results || []).map((r: Record<string, unknown>) => ({
-        id: r.id as number,
         callsign: (r.callsign as string) || '',
         frequency: parseFloat(String(r.frequency)) || 0,
         offset: parseFloat(String(r.offset)) || 0,
@@ -87,19 +85,19 @@ export function RepeaterLookup({ onClose, onImport }: Props) {
     }
   };
 
-  const toggleSelect = (id: number) => {
+  const toggleSelect = (idx: number) => {
     const next = new Set(selected);
-    next.has(id) ? next.delete(id) : next.add(id);
+    next.has(idx) ? next.delete(idx) : next.add(idx);
     setSelected(next);
   };
 
   const toggleAll = () => {
     if (selected.size === results.length) setSelected(new Set());
-    else setSelected(new Set(results.map(r => r.id)));
+    else setSelected(new Set(results.map((_, i) => i)));
   };
 
   const handleImport = () => {
-    const items = results.filter(r => selected.has(r.id));
+    const items = results.filter((_, i) => selected.has(i));
     const partials: Partial<Channel>[] = items.map(r => ({
       name: r.callsign.slice(0, 16),
       rxFrequency: r.frequency,
@@ -167,7 +165,7 @@ export function RepeaterLookup({ onClose, onImport }: Props) {
             <table className="w-full text-sm">
               <thead className="bg-surface sticky top-0">
                 <tr>
-                  <th className="px-3 py-2 w-8" onClick={e => e.stopPropagation()}>
+                  <th className="px-3 py-2 w-8">
                     <input
                       type="checkbox"
                       checked={selected.size === results.length && results.length > 0}
@@ -183,19 +181,19 @@ export function RepeaterLookup({ onClose, onImport }: Props) {
                 </tr>
               </thead>
               <tbody>
-                {results.map(r => (
+                {results.map((r, idx) => (
                   <tr
-                    key={r.id}
+                    key={idx}
                     className={`border-t border-border-subtle hover:bg-surface-light/50 cursor-pointer ${
-                      selected.has(r.id) ? 'bg-primary/10' : ''
+                      selected.has(idx) ? 'bg-primary/10' : ''
                     }`}
-                    onClick={() => toggleSelect(r.id)}
+                    onClick={() => toggleSelect(idx)}
                   >
                     <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
                       <input
                         type="checkbox"
-                        checked={selected.has(r.id)}
-                        onChange={() => toggleSelect(r.id)}
+                        checked={selected.has(idx)}
+                        onChange={() => toggleSelect(idx)}
                         className="accent-primary-light w-4 h-4"
                       />
                     </td>
