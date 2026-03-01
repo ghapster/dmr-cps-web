@@ -55,7 +55,17 @@ export function RepeaterLookup({ onClose, onImport }: Props) {
       const params = new URLSearchParams({ state });
       if (city.trim()) params.set('city', city.trim());
 
-      const res = await fetch(`https://database.radioid.net/api/dmr/repeater/?${params}`);
+      const apiUrl = `https://database.radioid.net/api/dmr/repeater/?${params}`;
+
+      // Try direct first, fall back to CORS proxy
+      let res: Response;
+      try {
+        res = await fetch(apiUrl);
+      } catch {
+        // CORS blocked — route through proxy
+        res = await fetch(`https://corsproxy.io/?${encodeURIComponent(apiUrl)}`);
+      }
+
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       const items: RepeaterResult[] = (data.results || []).map((r: Record<string, unknown>) => ({
@@ -71,11 +81,7 @@ export function RepeaterLookup({ onClose, onImport }: Props) {
       if (items.length === 0) setError('No repeaters found for this search.');
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Unknown error';
-      if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
-        setError('CORS blocked or network error. Try visiting radioid.net directly to look up repeaters.');
-      } else {
-        setError(`Search failed: ${msg}`);
-      }
+      setError(`Search failed: ${msg}`);
     } finally {
       setLoading(false);
     }
