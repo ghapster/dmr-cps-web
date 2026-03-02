@@ -310,58 +310,85 @@ export function computeChecksum(address: number, data: Uint8Array): number {
 }
 
 /**
- * Read a single block from radio memory.
+ * Read a single block from radio memory (with retry on checksum error).
  *
  * Protocol:
  *   Send: 'R' + addr(4, big-endian) + length(1)
  *   Recv: 'W' + addr(4, big-endian) + length(1) + data(length) + checksum(1) + ACK
+ *
+ * USB serial (especially macOS CDC) can corrupt bytes in transit.
+ * Retries up to 3 times on checksum mismatch before giving up.
  */
 export async function readBlock(
   conn: RadioConnection,
   address: number,
   length: number,
 ): Promise<Uint8Array> {
-  // Build read command: R + 4-byte address (big-endian) + 1-byte length
-  const cmd = new Uint8Array(6);
-  cmd[0] = 0x52; // 'R'
-  cmd[1] = (address >> 24) & 0xff;
-  cmd[2] = (address >> 16) & 0xff;
-  cmd[3] = (address >> 8) & 0xff;
-  cmd[4] = address & 0xff;
-  cmd[5] = length;
+  let lastError: Error | null = null;
 
-  await conn.writer.write(cmd);
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) {
+      // Brief pause before retry, then reset reader to discard any stale data
+      await new Promise(r => setTimeout(r, 100));
+      try {
+        conn.reader.releaseLock();
+        conn.reader = conn.port.readable!.getReader();
+      } catch { /* best effort */ }
+    }
 
-  // Read response: W(1) + addr(4) + len(1) + data(length) + checksum(1) + ACK(1)
-  const respLen = 1 + 4 + 1 + length + 1 + 1;
-  const resp = await readExact(conn.reader, respLen);
+    try {
+      // Build read command: R + 4-byte address (big-endian) + 1-byte length
+      const cmd = new Uint8Array(6);
+      cmd[0] = 0x52; // 'R'
+      cmd[1] = (address >> 24) & 0xff;
+      cmd[2] = (address >> 16) & 0xff;
+      cmd[3] = (address >> 8) & 0xff;
+      cmd[4] = address & 0xff;
+      cmd[5] = length;
 
-  // Validate response header
-  if (resp[0] !== 0x57) { // 'W'
-    throw new RadioError('NACK', `Read block: expected 'W' response, got 0x${resp[0].toString(16)}`);
+      await conn.writer.write(cmd);
+
+      // Read response: W(1) + addr(4) + len(1) + data(length) + checksum(1) + ACK(1)
+      const respLen = 1 + 4 + 1 + length + 1 + 1;
+      const resp = await readExact(conn.reader, respLen);
+
+      // Validate response header
+      if (resp[0] !== 0x57) { // 'W'
+        throw new RadioError('NACK', `Read block: expected 'W' response, got 0x${resp[0].toString(16)}`);
+      }
+
+      // Validate ACK at end
+      if (resp[respLen - 1] !== ACK) {
+        throw new RadioError('NACK', `Read block: missing ACK byte`);
+      }
+
+      // Extract data
+      const data = resp.subarray(6, 6 + length);
+
+      // Validate checksum
+      const respAddr = (resp[1] << 24) | (resp[2] << 16) | (resp[3] << 8) | resp[4];
+      const expectedChecksum = computeChecksum(respAddr, data);
+      const actualChecksum = resp[6 + length];
+
+      if (actualChecksum !== expectedChecksum) {
+        throw new RadioError('CHECKSUM', `Checksum mismatch at 0x${address.toString(16)}: expected 0x${expectedChecksum.toString(16)}, got 0x${actualChecksum.toString(16)}`);
+      }
+
+      // Send ACK to confirm receipt
+      await conn.writer.write(new Uint8Array([ACK]));
+
+      return new Uint8Array(data);
+    } catch (e) {
+      lastError = e instanceof Error ? e : new Error(String(e));
+      // Only retry on checksum errors — other errors (NACK, timeout) are not retriable
+      if (!(e instanceof RadioError && e.code === 'CHECKSUM')) {
+        throw e;
+      }
+      console.warn(`readBlock 0x${address.toString(16)} attempt ${attempt + 1}/3 checksum error, retrying...`);
+    }
   }
 
-  // Validate ACK at end
-  if (resp[respLen - 1] !== ACK) {
-    throw new RadioError('NACK', `Read block: missing ACK byte`);
-  }
-
-  // Extract data
-  const data = resp.subarray(6, 6 + length);
-
-  // Validate checksum
-  const respAddr = (resp[1] << 24) | (resp[2] << 16) | (resp[3] << 8) | resp[4];
-  const expectedChecksum = computeChecksum(respAddr, data);
-  const actualChecksum = resp[6 + length];
-
-  if (actualChecksum !== expectedChecksum) {
-    throw new RadioError('CHECKSUM', `Checksum mismatch at 0x${address.toString(16)}: expected 0x${expectedChecksum.toString(16)}, got 0x${actualChecksum.toString(16)}`);
-  }
-
-  // Send ACK to confirm receipt
-  await conn.writer.write(new Uint8Array([ACK]));
-
-  return new Uint8Array(data);
+  throw lastError!;
 }
 
 /**
