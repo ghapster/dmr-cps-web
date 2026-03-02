@@ -9,6 +9,8 @@
 
 const BAUD_RATE = 921600; // USB CDC ignores baud, but higher = better host-side buffering
 const READ_TIMEOUT = 10000; // ms per read operation (generous for macOS USB CDC latency)
+const CMD_DELAY = 10; // ms delay after sending command before reading response
+                      // webprog-anytone uses 15ms — "established experimentally"
 const ACK = 0x06;
 
 // USB VID/PID filters for Anytone D578UV
@@ -307,25 +309,47 @@ export async function readBlock(
   cmd[4] = address & 0xff;
   cmd[5] = length;
 
-  await conn.writer.write(cmd);
-
-  // Read full response: W(1) + addr(4) + len(1) + data(length) + checksum(1) + ACK(1)
+  // Retry up to 3 times (radio may send unexpected bytes under load)
   const respLen = 1 + 4 + 1 + length + 1 + 1;
-  const resp = await readExact(conn.reader, respLen);
+  let lastError: Error | null = null;
 
-  // Validate response header
-  if (resp[0] !== 0x57) { // 'W'
-    throw new RadioError('NACK', `Read block at 0x${address.toString(16)}: expected 'W' (0x57), got 0x${resp[0].toString(16)}`);
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) {
+      // On retry: clear buffer and wait before re-sending
+      clearReadBuffer();
+      await new Promise(r => setTimeout(r, 100));
+    }
+
+    await conn.writer.write(cmd);
+
+    // Delay between command and response — required for Web Serial on macOS.
+    // webprog-anytone uses 15ms ("established experimentally").
+    await new Promise(r => setTimeout(r, CMD_DELAY));
+
+    const resp = await readExact(conn.reader, respLen);
+
+    // Validate response header
+    if (resp[0] !== 0x57) { // 'W'
+      lastError = new RadioError('NACK',
+        `Read block at 0x${address.toString(16)}: expected 'W' (0x57), got 0x${resp[0].toString(16)}`);
+      console.warn(`readBlock attempt ${attempt + 1}/3 failed at 0x${address.toString(16)}: got 0x${resp[0].toString(16)}`);
+      continue;
+    }
+
+    // Validate ACK at end
+    if (resp[respLen - 1] !== ACK) {
+      lastError = new RadioError('NACK',
+        `Read block at 0x${address.toString(16)}: missing ACK`);
+      console.warn(`readBlock attempt ${attempt + 1}/3: missing ACK at 0x${address.toString(16)}`);
+      continue;
+    }
+
+    // Extract data — NO ACK sent back (host does not acknowledge reads)
+    const data = resp.subarray(6, 6 + length);
+    return new Uint8Array(data);
   }
 
-  // Validate ACK at end
-  if (resp[respLen - 1] !== ACK) {
-    throw new RadioError('NACK', `Read block at 0x${address.toString(16)}: missing ACK`);
-  }
-
-  // Extract data — NO ACK sent back (host does not acknowledge reads)
-  const data = resp.subarray(6, 6 + length);
-  return new Uint8Array(data);
+  throw lastError ?? new RadioError('NACK', `Read block failed at 0x${address.toString(16)} after 3 attempts`);
 }
 
 /**
