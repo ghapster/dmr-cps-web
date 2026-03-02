@@ -8,7 +8,7 @@
 // --- Constants ---------------------------------------------------------------
 
 const BAUD_RATE = 115200;
-const READ_TIMEOUT = 3000; // ms per read operation
+const READ_TIMEOUT = 5000; // ms per read operation (macOS USB CDC needs more time)
 const ACK = 0x06;
 
 // USB VID/PID filters for Anytone D578UV
@@ -174,6 +174,9 @@ export async function openConnection(port: SerialPort): Promise<RadioConnection>
     parity: 'none',
     flowControl: 'none',
   });
+
+  // Brief settle delay — macOS USB CDC serial needs a moment after open
+  await new Promise(r => setTimeout(r, 500));
 
   if (!port.readable || !port.writable) {
     throw new RadioError('CONNECTION_LOST', 'Port opened but streams not available');
