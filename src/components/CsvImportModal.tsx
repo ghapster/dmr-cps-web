@@ -3,12 +3,14 @@ import type { Channel } from '../lib/types';
 import { importChannelsCsv } from '../lib/csv';
 
 interface Props {
+  existingChannels: Channel[];
   onClose: () => void;
   onImport: (partials: Partial<Channel>[]) => void;
 }
 
-export function CsvImportModal({ onClose, onImport }: Props) {
+export function CsvImportModal({ existingChannels, onClose, onImport }: Props) {
   const [channels, setChannels] = useState<Partial<Channel>[]>([]);
+  const [duplicates, setDuplicates] = useState<Set<number>>(new Set());
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
@@ -42,8 +44,19 @@ export function CsvImportModal({ onClose, onImport }: Props) {
           setSelected(new Set());
           return;
         }
+        // Detect duplicates: match on name + RX frequency
+        const existingKeys = new Set(
+          existingChannels.map(ch => `${ch.name.toLowerCase()}|${ch.rxFrequency.toFixed(4)}`)
+        );
+        const dupes = new Set<number>();
+        for (let i = 0; i < parsed.length; i++) {
+          const key = `${(parsed[i].name || '').toLowerCase()}|${(parsed[i].rxFrequency ?? 0).toFixed(4)}`;
+          if (existingKeys.has(key)) dupes.add(i);
+        }
+        setDuplicates(dupes);
         setChannels(parsed);
-        setSelected(new Set(parsed.map((_, i) => i)));
+        // Auto-select only non-duplicates
+        setSelected(new Set(parsed.map((_, i) => i).filter(i => !dupes.has(i))));
       } catch {
         setError('Failed to parse CSV file.');
         setChannels([]);
@@ -123,13 +136,16 @@ export function CsvImportModal({ onClose, onImport }: Props) {
           <>
             <div className="flex items-center gap-2 mb-3">
               <button
-                onClick={() => { setChannels([]); setSelected(new Set()); setError(null); setFileName(null); }}
+                onClick={() => { setChannels([]); setSelected(new Set()); setDuplicates(new Set()); setError(null); setFileName(null); }}
                 className="text-xs text-text-dimmed hover:text-text-muted transition-colors"
               >
                 &larr; Choose different file
               </button>
               <span className="text-xs text-text-muted">
                 {fileName} &mdash; {channels.length} channels parsed
+                {duplicates.size > 0 && (
+                  <span className="text-amber-400 ml-2">({duplicates.size} duplicates deselected)</span>
+                )}
               </span>
             </div>
             <div className="flex-1 overflow-auto rounded-xl border border-border mb-4">
@@ -159,7 +175,7 @@ export function CsvImportModal({ onClose, onImport }: Props) {
                       key={idx}
                       className={`border-t border-border-subtle hover:bg-surface-light/50 cursor-pointer ${
                         selected.has(idx) ? 'bg-primary/10' : ''
-                      }`}
+                      } ${duplicates.has(idx) ? 'opacity-50' : ''}`}
                       onClick={() => toggleSelect(idx)}
                     >
                       <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
@@ -170,7 +186,12 @@ export function CsvImportModal({ onClose, onImport }: Props) {
                           className="accent-primary-light w-4 h-4"
                         />
                       </td>
-                      <td className="px-3 py-2 font-medium">{ch.name || '—'}</td>
+                      <td className="px-3 py-2 font-medium">
+                        {ch.name || '—'}
+                        {duplicates.has(idx) && (
+                          <span className="ml-2 text-[10px] font-semibold text-amber-400 bg-amber-400/15 px-1.5 py-0.5 rounded">DUP</span>
+                        )}
+                      </td>
                       <td className="px-3 py-2 tabular-nums font-mono text-xs">{ch.rxFrequency?.toFixed(4) || '—'}</td>
                       <td className="px-3 py-2 tabular-nums font-mono text-xs">{ch.txFrequency?.toFixed(4) || '—'}</td>
                       <td className="px-3 py-2 text-text-muted text-xs">{ch.mode || '—'}</td>

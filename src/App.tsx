@@ -343,8 +343,9 @@ function App() {
         onCancel={() => setShowWriteConfirm(false)}
       />
 
-      {showCsvImport && (
+      {showCsvImport && codeplug && (
         <CsvImportModal
+          existingChannels={codeplug.channels}
           onClose={() => setShowCsvImport(false)}
           onImport={(partials) => {
             importChannels(partials);
