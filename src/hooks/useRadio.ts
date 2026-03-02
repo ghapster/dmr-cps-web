@@ -62,10 +62,26 @@ export function useRadio() {
   }, []);
 
   /**
+   * Safely close any existing connection (fire-and-forget).
+   */
+  const cleanup = useCallback(async () => {
+    const conn = connRef.current;
+    if (conn) {
+      try { conn.reader.releaseLock(); } catch { /* ignore */ }
+      try { conn.writer.releaseLock(); } catch { /* ignore */ }
+      try { await conn.port.close(); } catch { /* ignore */ }
+      connRef.current = null;
+    }
+  }, []);
+
+  /**
    * Connect to the radio: request port → open → enter program mode → identify.
    */
   const connect = useCallback(async () => {
     try {
+      // Clean up any previous connection first (prevents "port already open" errors)
+      await cleanup();
+
       setStatus('connecting', { error: null, progress: null, progressLabel: 'Selecting port...' });
 
       const port = await requestPort();
@@ -95,7 +111,8 @@ export function useRadio() {
         progressLabel: null,
       });
     } catch (e) {
-      connRef.current = null;
+      // Clean up the failed connection so the port is released for retry
+      await cleanup();
       const msg = e instanceof RadioError ? e.message :
                   e instanceof Error ? e.message : 'Connection failed';
       // If user cancelled the port picker, just go back to disconnected
@@ -105,7 +122,7 @@ export function useRadio() {
         setStatus('error', { error: msg, progressLabel: null });
       }
     }
-  }, [setStatus]);
+  }, [setStatus, cleanup]);
 
   /**
    * Disconnect from the radio.
@@ -140,10 +157,12 @@ export function useRadio() {
       return codeplug;
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Read failed';
+      // Close the connection so user can cleanly reconnect
+      await cleanup();
       setStatus('error', { error: msg, progress: null, progressLabel: null });
       return null;
     }
-  }, [setStatus, setProgress]);
+  }, [setStatus, setProgress, cleanup]);
 
   /**
    * Write the codeplug to the radio.
@@ -159,10 +178,12 @@ export function useRadio() {
       return true;
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Write failed';
+      // Close the connection so user can cleanly reconnect
+      await cleanup();
       setStatus('error', { error: msg, progress: null, progressLabel: null });
       return false;
     }
-  }, [setStatus, setProgress]);
+  }, [setStatus, setProgress, cleanup]);
 
   return {
     ...state,
