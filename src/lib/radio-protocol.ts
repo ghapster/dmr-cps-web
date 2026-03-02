@@ -2,13 +2,13 @@
  * radio-protocol.ts — Serial Transport Layer for Anytone D578UV
  *
  * Low-level serial communication. No codeplug knowledge.
- * Protocol based on qdmr, dmrconfig, and anytone-flash-tools.
+ * Protocol verified against: qdmr, dmrconfig, anytone-flash-tools, webprog-anytone.
  */
 
 // --- Constants ---------------------------------------------------------------
 
-const BAUD_RATE = 115200;
-const READ_TIMEOUT = 8000; // ms per read operation (macOS USB CDC needs more time)
+const BAUD_RATE = 921600; // USB CDC ignores baud, but higher = better host-side buffering
+const READ_TIMEOUT = 5000; // ms per read operation
 const ACK = 0x06;
 
 // USB VID/PID filters for Anytone D578UV
@@ -87,44 +87,6 @@ async function readExact(
   return result;
 }
 
-/** Read bytes until a specific terminator byte, with timeout. */
-async function readUntil(
-  reader: ReadableStreamDefaultReader<Uint8Array>,
-  terminator: number,
-  maxBytes: number = 256,
-  timeoutMs: number = READ_TIMEOUT,
-): Promise<Uint8Array> {
-  const buf: number[] = [];
-  const deadline = Date.now() + timeoutMs;
-
-  while (buf.length < maxBytes) {
-    const remaining = deadline - Date.now();
-    if (remaining <= 0) {
-      throw new RadioError('TIMEOUT', 'Timed out waiting for response');
-    }
-
-    const { value, done } = await Promise.race([
-      reader.read(),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new RadioError('TIMEOUT', 'Read timeout')), remaining)
-      ),
-    ]);
-
-    if (done || !value) {
-      throw new RadioError('CONNECTION_LOST', 'Serial port closed during read');
-    }
-
-    for (let i = 0; i < value.byteLength; i++) {
-      buf.push(value[i]);
-      if (value[i] === terminator) {
-        return new Uint8Array(buf);
-      }
-    }
-  }
-
-  return new Uint8Array(buf);
-}
-
 /** Encode a string as ASCII bytes. */
 function asciiBytes(str: string): Uint8Array {
   const buf = new Uint8Array(str.length);
@@ -175,18 +137,16 @@ export async function openConnection(port: SerialPort): Promise<RadioConnection>
     flowControl: 'none',
   });
 
-  // Toggle DTR/RTS signals — required by macOS USB CDC drivers to wake the device.
-  // Toggle low→high to simulate a fresh connection.
+  // Enable DTR + RTS — required by USB CDC drivers (especially macOS).
+  // dmrconfig does the same: DTR_CONTROL_ENABLE + RTS_CONTROL_ENABLE.
   try {
-    await (port as any).setSignals({ dataTerminalReady: false, requestToSend: false });
-    await new Promise(r => setTimeout(r, 100));
     await (port as any).setSignals({ dataTerminalReady: true, requestToSend: true });
   } catch {
     // setSignals may not be supported on all platforms — non-fatal
   }
 
-  // Settle delay — macOS USB CDC serial needs time after open + signal toggle
-  await new Promise(r => setTimeout(r, 1500));
+  // Settle delay — macOS USB CDC serial needs time after open
+  await new Promise(r => setTimeout(r, 500));
 
   if (!port.readable || !port.writable) {
     throw new RadioError('CONNECTION_LOST', 'Port opened but streams not available');
@@ -199,21 +159,18 @@ export async function openConnection(port: SerialPort): Promise<RadioConnection>
 }
 
 /**
- * Enter programming mode (with retry).
- * Send "PROGRAM" → expect "QX" + 0x06
- * Retries up to 3 times with increasing delays for USB CDC reliability.
- * On retry, releases and re-acquires the reader to discard any orphaned reads.
+ * Enter programming mode (with retry, per dmrconfig pattern).
+ * Send "PROGRAM" → expect "QX\x06" (3 bytes).
+ * Retries up to 10 times with 500ms delays (dmrconfig does the same).
  */
 export async function enterProgramMode(conn: RadioConnection): Promise<void> {
   let lastError: Error | null = null;
 
-  for (let attempt = 0; attempt < 3; attempt++) {
+  for (let attempt = 0; attempt < 10; attempt++) {
     if (attempt > 0) {
-      // Wait before retry, increasing delay each time
-      await new Promise(r => setTimeout(r, 800 * attempt));
+      await new Promise(r => setTimeout(r, 500));
 
-      // Release and re-acquire the reader to flush any orphaned read promises
-      // from the previous failed attempt (critical for Web Streams API correctness)
+      // Release and re-acquire reader to discard any stale/orphaned data
       try {
         conn.reader.releaseLock();
         conn.reader = conn.port.readable!.getReader();
@@ -224,85 +181,65 @@ export async function enterProgramMode(conn: RadioConnection): Promise<void> {
 
     try {
       await conn.writer.write(asciiBytes('PROGRAM'));
-
-      // Radio responds with "QX\x06" (3 bytes)
-      const resp = await readExact(conn.reader, 3);
-      if (resp[0] !== 0x51 || resp[1] !== 0x58 || resp[2] !== ACK) {
-        throw new RadioError('NACK', `Unexpected PROGRAM response: ${Array.from(resp).map(b => b.toString(16)).join(' ')}`);
+      const resp = await readExact(conn.reader, 3, 2000);
+      if (resp[0] === 0x51 && resp[1] === 0x58 && resp[2] === ACK) {
+        return; // Success — got "QX\x06"
       }
-      return; // Success
+      lastError = new RadioError('NACK', `Unexpected PROGRAM response: ${Array.from(resp).map(b => b.toString(16)).join(' ')}`);
     } catch (e) {
       lastError = e instanceof Error ? e : new Error(String(e));
-      console.warn(`enterProgramMode attempt ${attempt + 1}/3 failed:`, lastError.message);
     }
+    console.warn(`enterProgramMode attempt ${attempt + 1}/10 failed:`, lastError?.message);
   }
 
-  throw lastError ?? new RadioError('TIMEOUT', 'Failed to enter programming mode after 3 attempts');
+  throw lastError ?? new RadioError('TIMEOUT', 'Failed to enter programming mode after 10 attempts');
 }
 
 /**
  * Identify the radio.
- * Send 0x02 → parse model + firmware response.
- * Response format: "ID" + model_string + "\x00" + firmware + "\x00" + 0x06
- * Actual format varies — Anytone sends model info as ASCII terminated by 0x06.
+ * Send 0x02 → read exactly 16 bytes.
+ *
+ * Response (per QDMR RadioInfoResponse struct):
+ *   Byte 0:     'I' (0x49) — success prefix
+ *   Bytes 1-7:  Model name (7 bytes ASCII, e.g. "D578UV\x00")
+ *   Byte 8:     Bands byte
+ *   Bytes 9-14: Version string (6 bytes ASCII, e.g. "V110\x00\x00")
+ *   Byte 15:    ACK (0x06)
  */
 export async function identify(conn: RadioConnection): Promise<RadioIdentity> {
   await conn.writer.write(new Uint8Array([0x02]));
 
-  // Read response until ACK byte
-  const resp = await readUntil(conn.reader, ACK, 128);
+  // Response is exactly 16 bytes (fixed size per QDMR struct)
+  const resp = await readExact(conn.reader, 16);
 
-  // Response: "ID" + model_bytes + 0x00 + firmware_bytes + 0x00 + 0x06
-  // Or simply: model_and_firmware_string + 0x06
-  // Parse the ASCII content before the ACK
-  const content = resp.subarray(0, resp.length - 1); // strip trailing ACK
-
-  // Skip "ID" prefix if present
-  let offset = 0;
-  if (content.length >= 2 && content[0] === 0x49 && content[1] === 0x44) {
-    offset = 2;
+  // Validate prefix and ACK
+  if (resp[0] !== 0x49) { // 'I'
+    throw new RadioError('NACK', `Identify: expected 'I' prefix, got 0x${resp[0].toString(16)}`);
+  }
+  if (resp[15] !== ACK) {
+    console.warn(`Identify: expected ACK at byte 15, got 0x${resp[15].toString(16)}`);
   }
 
-  // Find null separator between model and firmware
-  let nullPos = -1;
-  for (let i = offset; i < content.length; i++) {
-    if (content[i] === 0x00) { nullPos = i; break; }
-  }
-
-  let model: string;
-  let firmware: string;
-
-  if (nullPos >= 0) {
-    model = decodeAscii(content, offset, nullPos - offset);
-    firmware = decodeAscii(content, nullPos + 1);
-  } else {
-    // No null separator — treat entire response as model string
-    const full = decodeAscii(content, offset);
-    // Try to split: model is typically "D578UV" (6 chars), rest is firmware
-    if (full.length > 6) {
-      model = full.substring(0, 6);
-      firmware = full.substring(6);
-    } else {
-      model = full;
-      firmware = '';
-    }
-  }
+  // Model: bytes 1-7 (ASCII, null-terminated)
+  const model = decodeAscii(resp, 1, 7);
+  // Version: bytes 9-14 (ASCII, null-terminated)
+  const firmware = decodeAscii(resp, 9, 6);
 
   return { model: model.trim(), firmware: firmware.trim() };
 }
 
 /**
  * Compute additive checksum for a write block.
- * Sum = (address bytes + data bytes) & 0xFF
+ * Sum = (address[4] + length[1] + data[]) & 0xFF
+ * Per qdmr, dmrconfig, and anytone-flash-tools: covers addr + len + data.
  */
-export function computeChecksum(address: number, data: Uint8Array): number {
+export function computeChecksum(address: number, length: number, data: Uint8Array): number {
   let sum = 0;
-  // Address is 4 bytes big-endian
   sum += (address >> 24) & 0xff;
   sum += (address >> 16) & 0xff;
   sum += (address >> 8) & 0xff;
   sum += address & 0xff;
-  // Data bytes
+  sum += length & 0xff;
   for (let i = 0; i < data.length; i++) {
     sum += data[i];
   }
@@ -314,12 +251,10 @@ export function computeChecksum(address: number, data: Uint8Array): number {
  *
  * Protocol:
  *   Send: 'R' + addr(4, big-endian) + length(1)
- *   Recv: 'W' + addr(4) + len(1) + data(length) + checksum(1) + ACK    (24 bytes)
- *     OR: addr(4) + len(1) + data(length) + checksum(1) + ACK           (23 bytes)
+ *   Recv: 'W' + addr(4) + len(1) + data(length) + checksum(1) + ACK(1)
  *
- * Some D578UV firmware omits the 'W' prefix. We auto-detect by reading the
- * first byte: if it's 'W' (0x57), read 23 more bytes; otherwise it's the
- * first address byte, read 22 more.
+ * Total response: length + 8 bytes.
+ * NO ACK is sent by the host after reading (only the radio sends ACK in its response).
  */
 export async function readBlock(
   conn: RadioConnection,
@@ -337,36 +272,22 @@ export async function readBlock(
 
   await conn.writer.write(cmd);
 
-  // Read first byte to detect response format
-  const firstByte = await readExact(conn.reader, 1);
+  // Read full response: W(1) + addr(4) + len(1) + data(length) + checksum(1) + ACK(1)
+  const respLen = 1 + 4 + 1 + length + 1 + 1;
+  const resp = await readExact(conn.reader, respLen);
 
-  let dataOffset: number;
-  let remaining: number;
-
-  if (firstByte[0] === 0x57) {
-    // Standard format: W + addr(4) + len(1) + data(length) + checksum(1) + ACK(1)
-    remaining = 4 + 1 + length + 1 + 1; // 23 more bytes
-    dataOffset = 5; // data starts at byte 5 of the remaining buffer (after addr+len)
-  } else {
-    // No 'W' prefix: addr(4) + len(1) + data(length) + checksum(1) + ACK(1)
-    // firstByte[0] is the first address byte — read 3 more addr + len + data + checksum + ACK
-    remaining = 3 + 1 + length + 1 + 1; // 22 more bytes
-    dataOffset = 4; // data starts at byte 4 of the remaining buffer (after 3 addr bytes + len)
+  // Validate response header
+  if (resp[0] !== 0x57) { // 'W'
+    throw new RadioError('NACK', `Read block at 0x${address.toString(16)}: expected 'W' (0x57), got 0x${resp[0].toString(16)}`);
   }
-
-  const rest = await readExact(conn.reader, remaining);
-
-  // Extract data from the appropriate offset
-  const data = rest.subarray(dataOffset, dataOffset + length);
 
   // Validate ACK at end
-  if (rest[remaining - 1] !== ACK) {
-    console.warn(`readBlock 0x${address.toString(16)}: expected ACK at end, got 0x${rest[remaining - 1].toString(16)}`);
+  if (resp[respLen - 1] !== ACK) {
+    throw new RadioError('NACK', `Read block at 0x${address.toString(16)}: missing ACK`);
   }
 
-  // Send ACK to confirm receipt
-  await conn.writer.write(new Uint8Array([ACK]));
-
+  // Extract data — NO ACK sent back (host does not acknowledge reads)
+  const data = resp.subarray(6, 6 + length);
   return new Uint8Array(data);
 }
 
@@ -386,7 +307,7 @@ export async function writeBlock(
     throw new Error(`writeBlock: data must be 16 bytes, got ${data.length}`);
   }
 
-  const checksum = computeChecksum(address, data);
+  const checksum = computeChecksum(address, 16, data);
 
   // Build write command: W + addr(4) + len(1) + data(16) + checksum(1) + ACK
   const cmd = new Uint8Array(1 + 4 + 1 + 16 + 1 + 1);
@@ -455,7 +376,6 @@ export async function writeRegion(
     } else {
       block = new Uint8Array(blockSize);
       block.set(data.subarray(offset, offset + remaining));
-      // Remaining bytes are 0x00 (default Uint8Array fill)
     }
 
     await writeBlock(conn, startAddr + offset, block);
