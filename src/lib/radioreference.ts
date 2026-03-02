@@ -3,7 +3,7 @@
 // ---------------------------------------------------------------------------
 
 const RR_ENDPOINT = 'https://api.radioreference.com/soap2/?wsdl&v=18&s=rpc';
-const CORS_PROXY = 'https://corsproxy.io';
+const CORS_PROXY = 'https://dmr-cors-proxy.ghapster.workers.dev';
 
 export interface RRCredentials {
   username: string;
@@ -64,7 +64,7 @@ function escapeXml(s: string): string {
 
 async function soapCall(method: string, params: string): Promise<Document> {
   const body = soapEnvelope(method, params);
-  const proxiedUrl = `${CORS_PROXY}/?${encodeURIComponent(RR_ENDPOINT)}`;
+  const proxiedUrl = `${CORS_PROXY}/?url=${encodeURIComponent(RR_ENDPOINT)}`;
 
   const res = await fetch(proxiedUrl, {
     method: 'POST',

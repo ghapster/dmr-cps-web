@@ -62,7 +62,7 @@ export function RepeaterLookup({ onClose, onImport }: Props) {
         res = await fetch(apiUrl);
       } catch {
         // CORS blocked — route through proxy
-        res = await fetch(`https://corsproxy.io/?${encodeURIComponent(apiUrl)}`);
+        res = await fetch(`https://dmr-cors-proxy.ghapster.workers.dev/?url=${encodeURIComponent(apiUrl)}`);
       }
 
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
