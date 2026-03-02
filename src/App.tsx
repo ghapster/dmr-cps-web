@@ -23,6 +23,7 @@ import { GroupListEditor } from './components/GroupListEditor';
 import { AprsEditor } from './components/AprsEditor';
 import { RoamingEditor } from './components/RoamingEditor';
 import { ConfirmDialog } from './components/ConfirmDialog';
+import { CsvImportModal } from './components/CsvImportModal';
 
 function App() {
   const toast = useToast();
@@ -49,6 +50,7 @@ function App() {
   const [section, setSection] = useState<ActiveSection>('channels');
   const [error, setError] = useState<string | null>(null);
   const [showWriteConfirm, setShowWriteConfirm] = useState(false);
+  const [showCsvImport, setShowCsvImport] = useState(false);
 
   // Auto-load persisted codeplug on mount
   useEffect(() => {
@@ -298,6 +300,7 @@ function App() {
         onOpen={handleOpen}
         onSave={handleSave}
         onExportCsv={handleExportCsv}
+        onImportCsv={() => setShowCsvImport(true)}
         onUndo={undo}
         onRedo={redo}
         canUndo={canUndo}
@@ -339,6 +342,17 @@ function App() {
         onConfirm={handleRadioWrite}
         onCancel={() => setShowWriteConfirm(false)}
       />
+
+      {showCsvImport && (
+        <CsvImportModal
+          onClose={() => setShowCsvImport(false)}
+          onImport={(partials) => {
+            importChannels(partials);
+            setShowCsvImport(false);
+            toast(`Imported ${partials.length} channels from CSV`);
+          }}
+        />
+      )}
     </>
   );
 }

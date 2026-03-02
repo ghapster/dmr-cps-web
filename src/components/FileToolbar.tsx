@@ -8,6 +8,7 @@ interface Props {
   onOpen: (file: File) => void;
   onSave: () => void;
   onExportCsv: () => void;
+  onImportCsv: () => void;
   onUndo: () => void;
   onRedo: () => void;
   canUndo: boolean;
@@ -26,7 +27,7 @@ interface Props {
 }
 
 export function FileToolbar({
-  fileName, dirty, hasCodeplug, onOpen, onSave, onExportCsv,
+  fileName, dirty, hasCodeplug, onOpen, onSave, onExportCsv, onImportCsv,
   onUndo, onRedo, canUndo, canRedo,
   radioSupported, radioStatus, radioModel, radioProgress, radioProgressLabel, radioError,
   onRadioConnect, onRadioDisconnect, onRadioRead, onRadioWrite,
@@ -63,7 +64,7 @@ export function FileToolbar({
             <circle cx="12" cy="12" r="1" fill="currentColor" />
           </svg>
           <span className="text-sm font-semibold text-primary-light tracking-wide">DMR CPS</span>
-          <span className="text-xs font-medium text-text-dimmed">V2.6</span>
+          <span className="text-xs font-medium text-text-dimmed">V2.7</span>
         </div>
 
         <input
@@ -96,6 +97,13 @@ export function FileToolbar({
             className="px-4 py-1.5 text-sm bg-surface-lighter hover:bg-zinc-700 border border-border rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             Export CSV
+          </button>
+          <button
+            onClick={onImportCsv}
+            disabled={!hasCodeplug}
+            className="px-4 py-1.5 text-sm bg-surface-lighter hover:bg-zinc-700 border border-border rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            Import CSV
           </button>
         </div>
 
