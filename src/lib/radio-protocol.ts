@@ -314,11 +314,12 @@ export function computeChecksum(address: number, data: Uint8Array): number {
  *
  * Protocol:
  *   Send: 'R' + addr(4, big-endian) + length(1)
- *   Recv: 'W' + addr(4, big-endian) + length(1) + data(length) + checksum(1) + ACK
+ *   Recv: 'W' + addr(4) + len(1) + data(length) + checksum(1) + ACK    (24 bytes)
+ *     OR: addr(4) + len(1) + data(length) + checksum(1) + ACK           (23 bytes)
  *
- * Checksum is NOT validated on reads — the Anytone CPS doesn't validate it
- * either, and macOS USB CDC can corrupt bytes in transit. Trusting the data
- * and completing the read is more important than aborting on a bad checksum.
+ * Some D578UV firmware omits the 'W' prefix. We auto-detect by reading the
+ * first byte: if it's 'W' (0x57), read 23 more bytes; otherwise it's the
+ * first address byte, read 22 more.
  */
 export async function readBlock(
   conn: RadioConnection,
@@ -336,22 +337,32 @@ export async function readBlock(
 
   await conn.writer.write(cmd);
 
-  // Read response: W(1) + addr(4) + len(1) + data(length) + checksum(1) + ACK(1)
-  const respLen = 1 + 4 + 1 + length + 1 + 1;
-  const resp = await readExact(conn.reader, respLen);
+  // Read first byte to detect response format
+  const firstByte = await readExact(conn.reader, 1);
 
-  // Validate response header
-  if (resp[0] !== 0x57) { // 'W'
-    throw new RadioError('NACK', `Read block: expected 'W' response, got 0x${resp[0].toString(16)}`);
+  let dataOffset: number;
+  let remaining: number;
+
+  if (firstByte[0] === 0x57) {
+    // Standard format: W + addr(4) + len(1) + data(length) + checksum(1) + ACK(1)
+    remaining = 4 + 1 + length + 1 + 1; // 23 more bytes
+    dataOffset = 5; // data starts at byte 5 of the remaining buffer (after addr+len)
+  } else {
+    // No 'W' prefix: addr(4) + len(1) + data(length) + checksum(1) + ACK(1)
+    // firstByte[0] is the first address byte — read 3 more addr + len + data + checksum + ACK
+    remaining = 3 + 1 + length + 1 + 1; // 22 more bytes
+    dataOffset = 4; // data starts at byte 4 of the remaining buffer (after 3 addr bytes + len)
   }
+
+  const rest = await readExact(conn.reader, remaining);
+
+  // Extract data from the appropriate offset
+  const data = rest.subarray(dataOffset, dataOffset + length);
 
   // Validate ACK at end
-  if (resp[respLen - 1] !== ACK) {
-    throw new RadioError('NACK', `Read block: missing ACK byte`);
+  if (rest[remaining - 1] !== ACK) {
+    console.warn(`readBlock 0x${address.toString(16)}: expected ACK at end, got 0x${rest[remaining - 1].toString(16)}`);
   }
-
-  // Extract data (skip checksum validation — trust the wire data)
-  const data = resp.subarray(6, 6 + length);
 
   // Send ACK to confirm receipt
   await conn.writer.write(new Uint8Array([ACK]));
