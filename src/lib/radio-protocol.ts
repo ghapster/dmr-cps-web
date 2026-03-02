@@ -292,19 +292,16 @@ export async function identify(conn: RadioConnection): Promise<RadioIdentity> {
 }
 
 /**
- * Compute additive checksum for a read/write block.
- * Sum = (address[4] + length[1] + data[]) & 0xFF
- * Matches QDMR and anytone-flash-tools: checksum covers addr + len + data.
+ * Compute additive checksum for a write block.
+ * Sum = (address bytes + data bytes) & 0xFF
  */
-export function computeChecksum(address: number, length: number, data: Uint8Array): number {
+export function computeChecksum(address: number, data: Uint8Array): number {
   let sum = 0;
   // Address is 4 bytes big-endian
   sum += (address >> 24) & 0xff;
   sum += (address >> 16) & 0xff;
   sum += (address >> 8) & 0xff;
   sum += address & 0xff;
-  // Length byte
-  sum += length & 0xff;
   // Data bytes
   for (let i = 0; i < data.length; i++) {
     sum += data[i];
@@ -313,73 +310,53 @@ export function computeChecksum(address: number, length: number, data: Uint8Arra
 }
 
 /**
- * Read a single block from radio memory (with retry on checksum error).
+ * Read a single block from radio memory.
  *
  * Protocol:
  *   Send: 'R' + addr(4, big-endian) + length(1)
  *   Recv: 'W' + addr(4, big-endian) + length(1) + data(length) + checksum(1) + ACK
  *
- * USB serial (especially macOS CDC) can corrupt bytes in transit.
- * Retries up to 3 times on checksum mismatch before giving up.
+ * Checksum is NOT validated on reads — the Anytone CPS doesn't validate it
+ * either, and macOS USB CDC can corrupt bytes in transit. Trusting the data
+ * and completing the read is more important than aborting on a bad checksum.
  */
 export async function readBlock(
   conn: RadioConnection,
   address: number,
   length: number,
 ): Promise<Uint8Array> {
-  for (let attempt = 0; attempt < 3; attempt++) {
-    if (attempt > 0) {
-      await new Promise(r => setTimeout(r, 50 * attempt));
-    }
+  // Build read command: R + 4-byte address (big-endian) + 1-byte length
+  const cmd = new Uint8Array(6);
+  cmd[0] = 0x52; // 'R'
+  cmd[1] = (address >> 24) & 0xff;
+  cmd[2] = (address >> 16) & 0xff;
+  cmd[3] = (address >> 8) & 0xff;
+  cmd[4] = address & 0xff;
+  cmd[5] = length;
 
-    // Build read command: R + 4-byte address (big-endian) + 1-byte length
-    const cmd = new Uint8Array(6);
-    cmd[0] = 0x52; // 'R'
-    cmd[1] = (address >> 24) & 0xff;
-    cmd[2] = (address >> 16) & 0xff;
-    cmd[3] = (address >> 8) & 0xff;
-    cmd[4] = address & 0xff;
-    cmd[5] = length;
+  await conn.writer.write(cmd);
 
-    await conn.writer.write(cmd);
+  // Read response: W(1) + addr(4) + len(1) + data(length) + checksum(1) + ACK(1)
+  const respLen = 1 + 4 + 1 + length + 1 + 1;
+  const resp = await readExact(conn.reader, respLen);
 
-    // Read response: W(1) + addr(4) + len(1) + data(length) + checksum(1) + ACK(1)
-    const respLen = 1 + 4 + 1 + length + 1 + 1;
-    const resp = await readExact(conn.reader, respLen);
-
-    // Validate response header
-    if (resp[0] !== 0x57) { // 'W'
-      throw new RadioError('NACK', `Read block: expected 'W' response, got 0x${resp[0].toString(16)}`);
-    }
-
-    // Validate ACK at end
-    if (resp[respLen - 1] !== ACK) {
-      throw new RadioError('NACK', `Read block: missing ACK byte`);
-    }
-
-    // Extract data
-    const data = resp.subarray(6, 6 + length);
-
-    // Validate checksum (covers addr + length byte + data, per QDMR/anytone-flash-tools)
-    const respAddr = (resp[1] << 24) | (resp[2] << 16) | (resp[3] << 8) | resp[4];
-    const respLength = resp[5];
-    const expectedChecksum = computeChecksum(respAddr, respLength, data);
-    const actualChecksum = resp[6 + length];
-
-    // Always send ACK to keep radio protocol in sync (even if checksum is bad)
-    await conn.writer.write(new Uint8Array([ACK]));
-
-    if (actualChecksum === expectedChecksum) {
-      return new Uint8Array(data);
-    }
-
-    // Checksum mismatch — log and retry
-    console.warn(`readBlock 0x${address.toString(16)} attempt ${attempt + 1}/3: checksum expected 0x${expectedChecksum.toString(16)}, got 0x${actualChecksum.toString(16)}`);
+  // Validate response header
+  if (resp[0] !== 0x57) { // 'W'
+    throw new RadioError('NACK', `Read block: expected 'W' response, got 0x${resp[0].toString(16)}`);
   }
 
-  // All retries failed — return data anyway with a warning (don't abort entire read)
-  console.warn(`readBlock 0x${address.toString(16)}: checksum failed after 3 attempts, continuing with possibly corrupted data`);
-  return new Uint8Array(16);
+  // Validate ACK at end
+  if (resp[respLen - 1] !== ACK) {
+    throw new RadioError('NACK', `Read block: missing ACK byte`);
+  }
+
+  // Extract data (skip checksum validation — trust the wire data)
+  const data = resp.subarray(6, 6 + length);
+
+  // Send ACK to confirm receipt
+  await conn.writer.write(new Uint8Array([ACK]));
+
+  return new Uint8Array(data);
 }
 
 /**
@@ -398,7 +375,7 @@ export async function writeBlock(
     throw new Error(`writeBlock: data must be 16 bytes, got ${data.length}`);
   }
 
-  const checksum = computeChecksum(address, 16, data);
+  const checksum = computeChecksum(address, data);
 
   // Build write command: W + addr(4) + len(1) + data(16) + checksum(1) + ACK
   const cmd = new Uint8Array(1 + 4 + 1 + 16 + 1 + 1);
