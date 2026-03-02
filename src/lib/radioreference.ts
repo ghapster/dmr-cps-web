@@ -143,42 +143,42 @@ export async function getZipCodeInfo(zip: string, creds: RRCredentials): Promise
 
 export async function getCountyInfo(ctid: number, creds: RRCredentials): Promise<RRCategory[]> {
   const params = `<ctid>${ctid}</ctid>${authParams(creds)}`;
-  const doc = await soapCall('getCountyFreqsByTag', params);
+  const doc = await soapCall('getCountyInfo', params);
 
-  // Parse the category/tag tree from response
-  return parseCategoryTree(doc);
-}
-
-function parseCategoryTree(doc: Document): RRCategory[] {
+  // CountyInfo response has cats > item (cat) > cid, cName, subcats > item (subcat) > scid, scName
   const categories: RRCategory[] = [];
-  // The response contains items with tag/category info grouped by tag
-  // Each item has: tag, tagDescr, and nested frequency entries
-  const items = getElements(doc, 'item');
+  const catElements = getElements(doc, 'cid');
 
-  for (const item of items) {
-    const tagId = getChildText(item, 'tagId') || getChildText(item, 'catId');
-    const tagDescr = getChildText(item, 'tagDescr') || getChildText(item, 'catDescr') || getChildText(item, 'tag');
+  for (const cidEl of catElements) {
+    const parent = cidEl.parentElement;
+    if (!parent) continue;
+    const cid = parseInt(cidEl.textContent || '');
+    const cName = getChildText(parent, 'cName');
+    if (isNaN(cid) || !cName) continue;
 
-    if (tagId && tagDescr) {
-      categories.push({
-        catId: parseInt(tagId),
-        catName: tagDescr,
-      });
+    // Parse subcats within this cat
+    const subcats: RRCategory[] = [];
+    const subcatContainer = Array.from(parent.children).find(c => c.localName === 'subcats');
+    if (subcatContainer) {
+      for (let i = 0; i < subcatContainer.children.length; i++) {
+        const sub = subcatContainer.children[i];
+        const scid = getChildText(sub, 'scid');
+        const scName = getChildText(sub, 'scName');
+        if (scid && scName) {
+          subcats.push({ catId: parseInt(scid), catName: scName });
+        }
+      }
     }
+
+    categories.push({ catId: cid, catName: cName, subcats });
   }
 
-  // Deduplicate by catId
-  const seen = new Set<number>();
-  return categories.filter(c => {
-    if (seen.has(c.catId)) return false;
-    seen.add(c.catId);
-    return true;
-  });
+  return categories;
 }
 
-export async function getSubcatFreqs(catId: number, ctid: number, creds: RRCredentials): Promise<RRFrequency[]> {
-  const params = `<ctid>${ctid}</ctid><tagId>${catId}</tagId>${authParams(creds)}`;
-  const doc = await soapCall('getCountyFreqsByTag', params);
+export async function getSubcatFreqs(scid: number, _ctid: number, creds: RRCredentials): Promise<RRFrequency[]> {
+  const params = `<scid>${scid}</scid>${authParams(creds)}`;
+  const doc = await soapCall('getSubcatFreqs', params);
 
   return parseFrequencies(doc);
 }

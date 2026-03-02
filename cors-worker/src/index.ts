@@ -42,9 +42,11 @@ export default {
     });
 
     // Return response with CORS headers
+    // Always return 200 — SOAP faults come as HTTP 500 upstream but the
+    // client needs to parse the XML body to extract fault messages.
     const body = await proxyRes.text();
     return new Response(body, {
-      status: proxyRes.status,
+      status: 200,
       headers: {
         ...CORS_HEADERS,
         'Content-Type': proxyRes.headers.get('Content-Type') || 'text/xml',

@@ -88,17 +88,17 @@ export function ScannerLookup({ onClose, onImport }: Props) {
     }
   };
 
-  const handleCategoryClick = async (cat: RRCategory) => {
+  const handleSubcatClick = async (subcat: RRCategory, parentName: string) => {
     if (!county) return;
     setLoading(true);
     setError(null);
-    setSelectedCatName(cat.catName);
+    setSelectedCatName(`${parentName} — ${subcat.catName}`);
     try {
-      const freqs = await getSubcatFreqs(cat.catId, county.ctid, creds);
+      const freqs = await getSubcatFreqs(subcat.catId, county.ctid, creds);
       setFrequencies(freqs);
       setSelected(new Set());
       if (freqs.length === 0) {
-        setError('No frequencies found in this category.');
+        setError('No frequencies found in this subcategory.');
       } else {
         setStep('frequencies');
       }
@@ -254,17 +254,28 @@ export function ScannerLookup({ onClose, onImport }: Props) {
               <p className="text-sm text-text-muted">No categories found for this county.</p>
             )}
             {loading && (
-              <p className="text-sm text-text-muted animate-pulse">Loading categories...</p>
+              <p className="text-sm text-text-muted animate-pulse">Loading frequencies...</p>
             )}
             {categories.map(cat => (
-              <button
-                key={cat.catId}
-                onClick={() => handleCategoryClick(cat)}
-                disabled={loading}
-                className="w-full text-left px-4 py-2.5 text-sm rounded-lg hover:bg-surface-lighter border border-transparent hover:border-border transition-colors disabled:opacity-40"
-              >
-                {cat.catName}
-              </button>
+              <div key={cat.catId} className="mb-1">
+                <div className="px-4 py-2 text-xs font-semibold text-text-muted uppercase tracking-wide">
+                  {cat.catName}
+                </div>
+                {cat.subcats && cat.subcats.length > 0 ? (
+                  cat.subcats.map(sub => (
+                    <button
+                      key={sub.catId}
+                      onClick={() => handleSubcatClick(sub, cat.catName)}
+                      disabled={loading}
+                      className="w-full text-left pl-8 pr-4 py-2 text-sm rounded-lg hover:bg-surface-lighter border border-transparent hover:border-border transition-colors disabled:opacity-40"
+                    >
+                      {sub.catName}
+                    </button>
+                  ))
+                ) : (
+                  <p className="pl-8 py-1 text-xs text-text-dimmed">No subcategories</p>
+                )}
+              </div>
             ))}
           </div>
         )}
