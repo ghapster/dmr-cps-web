@@ -7,10 +7,9 @@
 
 // --- Constants ---------------------------------------------------------------
 
-const BAUD_RATE = 921600; // USB CDC ignores baud, but higher = better host-side buffering
-const READ_TIMEOUT = 5000; // ms per read operation
+const BAUD_RATE = 921600;
 const ACK = 0x06;
-const READ_BLOCK_SIZE = 64; // dmrconfig uses 64, anytone-flash-tools/webprog use 255
+const READ_BLOCK_SIZE = 64; // dmrconfig uses 64; fewer USB round-trips than 16
 
 // USB VID/PID filters for Anytone D578UV
 const USB_FILTERS: SerialPortFilter[] = [
@@ -51,8 +50,8 @@ export interface RadioIdentity {
 }
 
 // --- Read buffer -------------------------------------------------------------
-// When reader.read() returns more bytes than readExact needs, excess bytes
-// are saved here for the next call. Prevents data loss from USB chunking.
+// reader.read() returns chunks of arbitrary size. If a chunk contains more
+// bytes than readExact needs, excess bytes are saved here for the next call.
 
 let readBuffer: Uint8Array | null = null;
 
@@ -62,16 +61,7 @@ function clearReadBuffer(): void {
 
 // --- Helpers -----------------------------------------------------------------
 
-/**
- * Reset the reader to cancel any orphaned reader.read() promises.
- *
- * When Promise.race times out, the pending reader.read() is still in the
- * reader's internal queue. ALL future reader.read() calls queue behind it.
- * When data finally arrives, the orphaned read consumes it — not our new read.
- * This cascades: one timeout → all subsequent reads fail.
- *
- * The ONLY way to cancel a pending reader.read() is to release the reader lock.
- */
+/** Release and re-acquire the reader to cancel any pending reader.read(). */
 function resetReader(conn: RadioConnection): void {
   clearReadBuffer();
   try { conn.reader.releaseLock(); } catch { /* ignore */ }
@@ -79,38 +69,16 @@ function resetReader(conn: RadioConnection): void {
 }
 
 /**
- * Flush stale data from the stream, then reset the reader clean.
- * After a failed read, the stream buffer may contain leftover bytes.
- * resetReader() cancels orphaned reads but doesn't discard buffered data.
+ * Read exactly `count` bytes from the reader. NO TIMEOUT.
+ *
+ * This is intentionally timeout-free. Promise.race timeouts create orphaned
+ * reader.read() promises that sit in the reader's queue and consume future
+ * data, causing cascading failures. Without timeouts, each read either
+ * succeeds or blocks until the connection is closed.
  */
-async function flushAndReset(conn: RadioConnection): Promise<void> {
-  resetReader(conn);
-  await new Promise(r => setTimeout(r, 100)); // Let in-flight USB data arrive
-
-  // Drain stale data until nothing comes for 50ms
-  let flushed = 0;
-  while (flushed < 512) {
-    try {
-      let tid: ReturnType<typeof setTimeout>;
-      await Promise.race([
-        conn.reader.read().then(r => { clearTimeout(tid); return r; }),
-        new Promise<never>((_, rej) => { tid = setTimeout(() => rej('empty'), 50); }),
-      ]);
-      flushed++;
-    } catch {
-      break;
-    }
-  }
-
-  // Reset once more to cancel the orphaned read from the final flush timeout
-  resetReader(conn);
-}
-
-/** Read exactly `count` bytes from the reader, with timeout. */
 async function readExact(
   reader: ReadableStreamDefaultReader<Uint8Array>,
   count: number,
-  timeoutMs: number = READ_TIMEOUT,
 ): Promise<Uint8Array> {
   const result = new Uint8Array(count);
   let offset = 0;
@@ -125,24 +93,8 @@ async function readExact(
       : null;
   }
 
-  const deadline = Date.now() + timeoutMs;
-
   while (offset < count) {
-    const remaining = deadline - Date.now();
-    if (remaining <= 0) {
-      throw new RadioError('TIMEOUT', `Timed out reading ${count} bytes (got ${offset})`);
-    }
-
-    let timeoutId: ReturnType<typeof setTimeout>;
-    const { value, done } = await Promise.race([
-      reader.read().then(r => { clearTimeout(timeoutId); return r; }),
-      new Promise<never>((_, reject) => {
-        timeoutId = setTimeout(
-          () => reject(new RadioError('TIMEOUT', `Read timeout after ${timeoutMs}ms`)),
-          remaining,
-        );
-      }),
-    ]);
+    const { value, done } = await reader.read();
 
     if (done || !value) {
       throw new RadioError('CONNECTION_LOST', 'Serial port closed during read');
@@ -160,6 +112,26 @@ async function readExact(
   }
 
   return result;
+}
+
+/**
+ * Read with a timeout. ONLY for handshake commands (PROGRAM, identify, END)
+ * where the radio might not respond at all. NOT for bulk reads.
+ */
+async function readExactWithTimeout(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  count: number,
+  timeoutMs: number,
+): Promise<Uint8Array> {
+  return new Promise<Uint8Array>((resolve, reject) => {
+    const tid = setTimeout(
+      () => reject(new RadioError('TIMEOUT', `Read timeout after ${timeoutMs}ms`)),
+      timeoutMs,
+    );
+    readExact(reader, count)
+      .then(data => { clearTimeout(tid); resolve(data); })
+      .catch(err => { clearTimeout(tid); reject(err); });
+  });
 }
 
 /** Encode a string as ASCII bytes. */
@@ -212,31 +184,28 @@ export async function openConnection(port: SerialPort): Promise<RadioConnection>
     flowControl: 'none',
   });
 
-  // Enable DTR + RTS — required by USB CDC drivers (especially macOS).
   try {
     await (port as any).setSignals({ dataTerminalReady: true, requestToSend: true });
-  } catch {
-    // setSignals may not be supported on all platforms — non-fatal
-  }
+  } catch { /* non-fatal */ }
 
-  // Settle delay — macOS USB CDC serial needs time after open
   await new Promise(r => setTimeout(r, 500));
-
   clearReadBuffer();
 
   if (!port.readable || !port.writable) {
     throw new RadioError('CONNECTION_LOST', 'Port opened but streams not available');
   }
 
-  const reader = port.readable.getReader();
-  const writer = port.writable.getWriter();
-
-  return { port, reader, writer };
+  return {
+    port,
+    reader: port.readable.getReader(),
+    writer: port.writable.getWriter(),
+  };
 }
 
 /**
- * Enter programming mode (with retry, per dmrconfig pattern).
+ * Enter programming mode.
  * Send "PROGRAM" → expect "QX\x06" (3 bytes).
+ * Retries up to 10 times (per dmrconfig).
  */
 export async function enterProgramMode(conn: RadioConnection): Promise<void> {
   let lastError: Error | null = null;
@@ -249,9 +218,9 @@ export async function enterProgramMode(conn: RadioConnection): Promise<void> {
 
     try {
       await conn.writer.write(asciiBytes('PROGRAM'));
-      const resp = await readExact(conn.reader, 3, 2000);
+      const resp = await readExactWithTimeout(conn.reader, 3, 2000);
       if (resp[0] === 0x51 && resp[1] === 0x58 && resp[2] === ACK) {
-        return; // Success — got "QX\x06"
+        return;
       }
       lastError = new RadioError('NACK', `Unexpected PROGRAM response: ${Array.from(resp).map(b => b.toString(16)).join(' ')}`);
     } catch (e) {
@@ -269,23 +238,19 @@ export async function enterProgramMode(conn: RadioConnection): Promise<void> {
  */
 export async function identify(conn: RadioConnection): Promise<RadioIdentity> {
   await conn.writer.write(new Uint8Array([0x02]));
-  const resp = await readExact(conn.reader, 16);
+  const resp = await readExactWithTimeout(conn.reader, 16, 5000);
 
-  if (resp[0] !== 0x49) { // 'I'
+  if (resp[0] !== 0x49) {
     throw new RadioError('NACK', `Identify: expected 'I' prefix, got 0x${resp[0].toString(16)}`);
-  }
-  if (resp[15] !== ACK) {
-    console.warn(`Identify: expected ACK at byte 15, got 0x${resp[15].toString(16)}`);
   }
 
   const model = decodeAscii(resp, 1, 7);
   const firmware = decodeAscii(resp, 9, 6);
-
   return { model: model.trim(), firmware: firmware.trim() };
 }
 
 /**
- * Compute additive checksum for a write block.
+ * Compute additive checksum.
  * Sum = (address[4] + length[1] + data[]) & 0xFF
  */
 export function computeChecksum(address: number, length: number, data: Uint8Array): number {
@@ -304,8 +269,9 @@ export function computeChecksum(address: number, length: number, data: Uint8Arra
 /**
  * Read a single block from radio memory.
  *
- * Retries up to 3 times. On timeout, resets the reader to cancel
- * any orphaned reader.read() promises that would block future reads.
+ * No timeout, no retry. readExact blocks until the radio responds.
+ * If the radio stops responding, the connection must be closed externally.
+ * This eliminates orphaned reader.read() promises entirely.
  */
 export async function readBlock(
   conn: RadioConnection,
@@ -320,42 +286,22 @@ export async function readBlock(
   cmd[4] = address & 0xff;
   cmd[5] = length;
 
+  await conn.writer.write(cmd);
+
   const respLen = 1 + 4 + 1 + length + 1 + 1;
-  let lastError: Error | null = null;
+  const resp = await readExact(conn.reader, respLen);
 
-  for (let attempt = 0; attempt < 3; attempt++) {
-    if (attempt > 0) {
-      // CRITICAL: flush stale data AND cancel orphaned reader.read() promises.
-      // resetReader alone doesn't discard bytes already buffered in the stream.
-      await flushAndReset(conn);
-    }
-
-    try {
-      await conn.writer.write(cmd);
-      const resp = await readExact(conn.reader, respLen);
-
-      if (resp[0] !== 0x57) { // 'W'
-        lastError = new RadioError('NACK',
-          `Read at 0x${address.toString(16)}: expected 'W', got 0x${resp[0].toString(16)}`);
-        console.warn(`readBlock attempt ${attempt + 1}/3: ${lastError.message}`);
-        continue;
-      }
-
-      if (resp[respLen - 1] !== ACK) {
-        lastError = new RadioError('NACK',
-          `Read at 0x${address.toString(16)}: missing ACK`);
-        console.warn(`readBlock attempt ${attempt + 1}/3: ${lastError.message}`);
-        continue;
-      }
-
-      return new Uint8Array(resp.subarray(6, 6 + length));
-    } catch (e) {
-      lastError = e instanceof Error ? e : new Error(String(e));
-      console.warn(`readBlock attempt ${attempt + 1}/3 at 0x${address.toString(16)}: ${lastError.message}`);
-    }
+  if (resp[0] !== 0x57) {
+    throw new RadioError('NACK',
+      `Read at 0x${address.toString(16)}: expected 'W', got 0x${resp[0].toString(16)}`);
   }
 
-  throw lastError ?? new RadioError('TIMEOUT', `Read failed at 0x${address.toString(16)} after 3 attempts`);
+  if (resp[respLen - 1] !== ACK) {
+    throw new RadioError('NACK',
+      `Read at 0x${address.toString(16)}: missing ACK`);
+  }
+
+  return new Uint8Array(resp.subarray(6, 6 + length));
 }
 
 /**
@@ -387,13 +333,13 @@ export async function writeBlock(
 
   const resp = await readExact(conn.reader, 1);
   if (resp[0] !== ACK) {
-    throw new RadioError('NACK', `Write block: expected ACK, got 0x${resp[0].toString(16)} at address 0x${address.toString(16)}`);
+    throw new RadioError('NACK',
+      `Write: expected ACK, got 0x${resp[0].toString(16)} at 0x${address.toString(16)}`);
   }
 }
 
 /**
- * Read a contiguous region of radio memory.
- * Uses 64-byte blocks (matching dmrconfig) — 4x fewer USB transactions than 16-byte.
+ * Read a contiguous region of radio memory in 64-byte blocks.
  */
 export async function readRegion(
   conn: RadioConnection,
@@ -425,7 +371,7 @@ export async function writeRegion(
   data: Uint8Array,
   onProgress?: (bytesWritten: number, totalBytes: number) => void,
 ): Promise<void> {
-  const blockSize = 16; // Writes are always 16 bytes
+  const blockSize = 16;
   let offset = 0;
 
   while (offset < data.length) {
@@ -444,14 +390,11 @@ export async function writeRegion(
   }
 }
 
-/**
- * Exit programming mode.
- * Send "END" → expect ACK.
- */
+/** Exit programming mode. Send "END" → expect ACK. */
 export async function exitProgramMode(conn: RadioConnection): Promise<void> {
   await conn.writer.write(asciiBytes('END'));
   try {
-    const resp = await readExact(conn.reader, 1, 2000);
+    const resp = await readExactWithTimeout(conn.reader, 1, 2000);
     if (resp[0] !== ACK) {
       console.warn(`exitProgramMode: expected ACK, got 0x${resp[0].toString(16)}`);
     }
@@ -460,9 +403,7 @@ export async function exitProgramMode(conn: RadioConnection): Promise<void> {
   }
 }
 
-/**
- * Close the serial connection, releasing reader/writer and closing the port.
- */
+/** Close the serial connection. */
 export async function closeConnection(conn: RadioConnection): Promise<void> {
   try { conn.reader.releaseLock(); } catch { /* ignore */ }
   try { conn.writer.releaseLock(); } catch { /* ignore */ }
