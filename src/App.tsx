@@ -34,7 +34,7 @@ function App() {
     addZone, deleteZone, updateZone,
     addRadioId, deleteRadioId, updateRadioId,
     addTextMessage, deleteTextMessage, updateTextMessage,
-    updateDigitalContact, updateAprsSettings, updateSettings,
+    updateDigitalContact, updateAprsSettings, updateSettings, updateGeneralSettings,
     addScanList, deleteScanList, updateScanList,
     addGroupList, deleteGroupList, updateGroupList,
     addAnalogContact, deleteAnalogContact, updateAnalogContact,
@@ -285,8 +285,10 @@ function App() {
           <SettingsViewer
             header={codeplug.header}
             settingsBlock={codeplug.settingsBlock}
+            generalSettingsRaw={codeplug.generalSettingsRaw}
             onSyncNow={handleSyncNow}
             onUpdateSettings={updateSettings}
+            onUpdateGeneralSettings={updateGeneralSettings}
           />
         );
     }

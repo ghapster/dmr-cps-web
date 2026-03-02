@@ -132,7 +132,8 @@ export interface RoamingZone {
 export interface Codeplug {
   source?: 'rdt' | 'radio';
   header: FileHeader;
-  settingsBlock: Uint8Array;   // preserved verbatim — not edited in Phase 1
+  settingsBlock: Uint8Array;   // 445-byte RDT format settings block
+  generalSettingsRaw?: Uint8Array; // 240-byte radio memory general settings (present after radio read)
   channels: Channel[];
   radioIds: RadioId[];
   zones: Zone[];

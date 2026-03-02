@@ -815,10 +815,11 @@ function buildCodeplug(data: ParsedRadioData): Codeplug {
     cpsVersion: 'V110',
   };
 
-  // Build a default settings block (445 bytes)
+  // Preserve raw 240-byte general settings for radio-memory codec
+  const generalSettingsRaw = new Uint8Array(data.generalSettings.subarray(0, 240));
+
+  // Build a default settings block (445 bytes) — RDT format placeholder
   const settingsBlock = new Uint8Array(445);
-  // Copy general settings into first 240 bytes
-  settingsBlock.set(data.generalSettings.subarray(0, Math.min(240, 445)));
 
   // Build digital contacts raw blob (needed by RDT writer)
   // RDT format: uint16_le size + contact records
@@ -870,6 +871,7 @@ function buildCodeplug(data: ParsedRadioData): Codeplug {
     source: 'radio',
     header,
     settingsBlock,
+    generalSettingsRaw,
     channels: data.channels,
     radioIds: data.radioIds,
     zones: data.zones,
