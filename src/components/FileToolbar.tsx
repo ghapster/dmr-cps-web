@@ -64,7 +64,7 @@ export function FileToolbar({
             <circle cx="12" cy="12" r="1" fill="currentColor" />
           </svg>
           <span className="text-sm font-semibold text-primary-light tracking-wide">DMR CPS</span>
-          <span className="text-xs font-medium text-text-dimmed">V2.9</span>
+          <span className="text-xs font-medium text-text-dimmed">V2.10</span>
         </div>
 
         <input
@@ -138,13 +138,19 @@ export function FileToolbar({
               </button>
             )}
             {radioStatus === 'error' && (
-              <button
-                onClick={onRadioConnect}
-                className="px-3 py-1.5 text-sm bg-accent-red/20 hover:bg-accent-red/30 text-accent-red border border-accent-red/30 rounded-md transition-colors"
-                title={radioError ?? undefined}
-              >
-                Reconnect
-              </button>
+              <>
+                <button
+                  onClick={onRadioConnect}
+                  className="px-3 py-1.5 text-sm bg-accent-red/20 hover:bg-accent-red/30 text-accent-red border border-accent-red/30 rounded-md transition-colors"
+                >
+                  Reconnect
+                </button>
+                {radioError && (
+                  <span className="text-xs text-accent-red max-w-xs truncate" title={radioError}>
+                    {radioError}
+                  </span>
+                )}
+              </>
             )}
             {(isConnected || isBusy) && (
               <>
@@ -178,7 +184,9 @@ export function FileToolbar({
               </>
             )}
             {radioStatus === 'connecting' && (
-              <span className="text-xs text-text-dimmed animate-pulse">Connecting...</span>
+              <span className="text-xs text-text-dimmed animate-pulse">
+                {radioProgressLabel || 'Connecting...'}
+              </span>
             )}
           </div>
         )}

@@ -66,14 +66,18 @@ export function useRadio() {
    */
   const connect = useCallback(async () => {
     try {
-      setStatus('connecting', { error: null, progress: null, progressLabel: null });
+      setStatus('connecting', { error: null, progress: null, progressLabel: 'Selecting port...' });
 
       const port = await requestPort();
+
+      setStatus('connecting', { progressLabel: 'Opening serial port...' });
       const conn = await openConnection(port);
       connRef.current = conn;
 
+      setStatus('connecting', { progressLabel: 'Entering program mode...' });
       await enterProgramMode(conn);
 
+      setStatus('connecting', { progressLabel: 'Identifying radio...' });
       const identity = await identify(conn);
       identityRef.current = identity;
 
@@ -88,6 +92,7 @@ export function useRadio() {
       setStatus('connected', {
         model: identity.model,
         firmware: identity.firmware,
+        progressLabel: null,
       });
     } catch (e) {
       connRef.current = null;
@@ -95,9 +100,9 @@ export function useRadio() {
                   e instanceof Error ? e.message : 'Connection failed';
       // If user cancelled the port picker, just go back to disconnected
       if (msg === 'No serial port selected') {
-        setStatus('disconnected');
+        setStatus('disconnected', { progressLabel: null });
       } else {
-        setStatus('error', { error: msg });
+        setStatus('error', { error: msg, progressLabel: null });
       }
     }
   }, [setStatus]);
