@@ -78,6 +78,34 @@ function resetReader(conn: RadioConnection): void {
   conn.reader = conn.port.readable!.getReader();
 }
 
+/**
+ * Flush stale data from the stream, then reset the reader clean.
+ * After a failed read, the stream buffer may contain leftover bytes.
+ * resetReader() cancels orphaned reads but doesn't discard buffered data.
+ */
+async function flushAndReset(conn: RadioConnection): Promise<void> {
+  resetReader(conn);
+  await new Promise(r => setTimeout(r, 100)); // Let in-flight USB data arrive
+
+  // Drain stale data until nothing comes for 50ms
+  let flushed = 0;
+  while (flushed < 512) {
+    try {
+      let tid: ReturnType<typeof setTimeout>;
+      await Promise.race([
+        conn.reader.read().then(r => { clearTimeout(tid); return r; }),
+        new Promise<never>((_, rej) => { tid = setTimeout(() => rej('empty'), 50); }),
+      ]);
+      flushed++;
+    } catch {
+      break;
+    }
+  }
+
+  // Reset once more to cancel the orphaned read from the final flush timeout
+  resetReader(conn);
+}
+
 /** Read exactly `count` bytes from the reader, with timeout. */
 async function readExact(
   reader: ReadableStreamDefaultReader<Uint8Array>,
@@ -297,10 +325,9 @@ export async function readBlock(
 
   for (let attempt = 0; attempt < 3; attempt++) {
     if (attempt > 0) {
-      // CRITICAL: reset reader to cancel orphaned reader.read() from the timeout.
-      // Without this, the orphaned read sits in the queue and consumes all future data.
-      resetReader(conn);
-      await new Promise(r => setTimeout(r, 200));
+      // CRITICAL: flush stale data AND cancel orphaned reader.read() promises.
+      // resetReader alone doesn't discard bytes already buffered in the stream.
+      await flushAndReset(conn);
     }
 
     try {
