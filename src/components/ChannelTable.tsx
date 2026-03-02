@@ -4,6 +4,7 @@ import { ConfirmDialog } from './ConfirmDialog';
 import { useToast } from './Toast';
 import { RepeaterLookup } from './RepeaterLookup';
 import { ScannerLookup } from './ScannerLookup';
+import { BulkEditPanel } from './BulkEditPanel';
 
 type SortKey = 'index' | 'name' | 'rxFrequency' | 'txFrequency' | 'mode' | 'power' | 'colorCode' | 'timeSlot';
 type SortDir = 'asc' | 'desc';
@@ -14,6 +15,7 @@ interface Props {
   onDeleteChannels: (indices: number[]) => void;
   onDuplicateChannel: (index: number) => number;
   onAddChannel: () => number; // returns the new channel's index
+  onBulkUpdateChannels?: (indices: number[], changes: Partial<Channel>) => void;
   onImportChannels?: (partials: Partial<Channel>[]) => void;
 }
 
@@ -76,7 +78,7 @@ function EditableCell({ value, onCommit, type = 'text', options, autoEdit = fals
   );
 }
 
-export function ChannelTable({ channels, onUpdateChannel, onDeleteChannels, onDuplicateChannel, onAddChannel, onImportChannels }: Props) {
+export function ChannelTable({ channels, onUpdateChannel, onDeleteChannels, onDuplicateChannel, onAddChannel, onBulkUpdateChannels, onImportChannels }: Props) {
   const toast = useToast();
   const [sortKey, setSortKey] = useState<SortKey>('index');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
@@ -86,6 +88,7 @@ export function ChannelTable({ channels, onUpdateChannel, onDeleteChannels, onDu
   const [highlightIndex, setHighlightIndex] = useState<number | null>(null);
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+  const [showBulkEdit, setShowBulkEdit] = useState(false);
   const [showRepeaterLookup, setShowRepeaterLookup] = useState(false);
   const [showScannerLookup, setShowScannerLookup] = useState(false);
 
@@ -218,14 +221,39 @@ export function ChannelTable({ channels, onUpdateChannel, onDeleteChannels, onDu
         <div className="flex-1" />
         <span className="text-xs text-text-dimmed">{sorted.length} of {channels.length} channels</span>
         {selected.size > 0 && (
-          <button
-            onClick={() => setConfirmBulkDelete(true)}
-            className="px-4 py-1.5 text-sm bg-accent-red/20 text-accent-red hover:bg-accent-red/30 rounded-md transition-colors"
-          >
-            Delete {selected.size}
-          </button>
+          <>
+            {onBulkUpdateChannels && (
+              <button
+                onClick={() => setShowBulkEdit(v => !v)}
+                className="px-4 py-1.5 text-sm bg-primary/20 text-primary-light hover:bg-primary/30 rounded-md transition-colors"
+              >
+                Bulk Edit {selected.size}
+              </button>
+            )}
+            <button
+              onClick={() => setConfirmBulkDelete(true)}
+              className="px-4 py-1.5 text-sm bg-accent-red/20 text-accent-red hover:bg-accent-red/30 rounded-md transition-colors"
+            >
+              Delete {selected.size}
+            </button>
+          </>
         )}
       </div>
+
+      {/* Bulk Edit Panel */}
+      {showBulkEdit && onBulkUpdateChannels && (
+        <BulkEditPanel
+          count={selected.size}
+          onApply={changes => {
+            onBulkUpdateChannels(Array.from(selected), changes);
+            const count = selected.size;
+            setSelected(new Set());
+            setShowBulkEdit(false);
+            toast(`Updated ${count} channel${count > 1 ? 's' : ''}`);
+          }}
+          onClose={() => setShowBulkEdit(false)}
+        />
+      )}
 
       {/* Table */}
       <div className="overflow-auto rounded-xl border border-border" style={{ boxShadow: 'var(--shadow-sm)' }}>

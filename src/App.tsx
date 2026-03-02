@@ -30,7 +30,7 @@ function App() {
   const {
     codeplug, fileName, dirty, issues,
     openFile, saveFile, exportCsv,
-    updateChannel, deleteChannels, addChannel, duplicateChannel,
+    updateChannel, deleteChannels, addChannel, bulkUpdateChannels, duplicateChannel,
     addZone, deleteZone, updateZone,
     addRadioId, deleteRadioId, updateRadioId,
     addTextMessage, deleteTextMessage, updateTextMessage,
@@ -189,6 +189,7 @@ function App() {
             onDeleteChannels={deleteChannels}
             onDuplicateChannel={duplicateChannel}
             onAddChannel={() => { const ch = createDefaultChannel(codeplug.channels); addChannel(ch); return ch.index; }}
+            onBulkUpdateChannels={bulkUpdateChannels}
             onImportChannels={importChannels}
           />
         );

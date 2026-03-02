@@ -95,6 +95,16 @@ export function useCodeplug() {
     }));
   }, [updateCodeplug]);
 
+  const bulkUpdateChannels = useCallback((indices: number[], changes: Partial<Channel>) => {
+    const indexSet = new Set(indices);
+    updateCodeplug(cp => ({
+      ...cp,
+      channels: cp.channels.map(ch =>
+        indexSet.has(ch.index) ? { ...ch, ...changes } : ch
+      ),
+    }));
+  }, [updateCodeplug]);
+
   const duplicateChannel = useCallback((index: number): number => {
     let newIndex = -1;
     updateCodeplug(cp => {
@@ -385,6 +395,7 @@ export function useCodeplug() {
     updateChannel,
     deleteChannels,
     addChannel,
+    bulkUpdateChannels,
     duplicateChannel,
     addZone,
     deleteZone,
