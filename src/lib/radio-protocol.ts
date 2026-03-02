@@ -8,7 +8,7 @@
 // --- Constants ---------------------------------------------------------------
 
 const BAUD_RATE = 921600; // USB CDC ignores baud, but higher = better host-side buffering
-const READ_TIMEOUT = 5000; // ms per read operation
+const READ_TIMEOUT = 10000; // ms per read operation (generous for macOS USB CDC latency)
 const ACK = 0x06;
 
 // USB VID/PID filters for Anytone D578UV
@@ -49,6 +49,18 @@ export interface RadioIdentity {
   firmware: string;
 }
 
+// --- Read buffer -------------------------------------------------------------
+// macOS USB CDC may bundle multiple radio responses into one USB transfer.
+// Without buffering, excess bytes from reader.read() are silently dropped,
+// causing the next readExact call to read misaligned data → timeout.
+
+let readBuffer: Uint8Array | null = null;
+
+/** Clear the read buffer (call on connection open / reader reset). */
+function clearReadBuffer(): void {
+  readBuffer = null;
+}
+
 // --- Helpers -----------------------------------------------------------------
 
 /** Read exactly `count` bytes from the reader, with timeout. */
@@ -60,6 +72,16 @@ async function readExact(
   const result = new Uint8Array(count);
   let offset = 0;
 
+  // First, consume any leftover bytes from previous reads
+  if (readBuffer && readBuffer.length > 0) {
+    const toCopy = Math.min(readBuffer.length, count);
+    result.set(readBuffer.subarray(0, toCopy), 0);
+    offset = toCopy;
+    readBuffer = toCopy < readBuffer.length
+      ? new Uint8Array(readBuffer.subarray(toCopy))
+      : null;
+  }
+
   const deadline = Date.now() + timeoutMs;
 
   while (offset < count) {
@@ -68,20 +90,31 @@ async function readExact(
       throw new RadioError('TIMEOUT', `Timed out reading ${count} bytes (got ${offset})`);
     }
 
+    // Race read vs timeout, but clear the timeout when read wins
+    let timeoutId: ReturnType<typeof setTimeout>;
     const { value, done } = await Promise.race([
-      reader.read(),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new RadioError('TIMEOUT', `Read timeout after ${timeoutMs}ms`)), remaining)
-      ),
+      reader.read().then(r => { clearTimeout(timeoutId); return r; }),
+      new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(
+          () => reject(new RadioError('TIMEOUT', `Read timeout after ${timeoutMs}ms`)),
+          remaining,
+        );
+      }),
     ]);
 
     if (done || !value) {
       throw new RadioError('CONNECTION_LOST', 'Serial port closed during read');
     }
 
-    const toCopy = Math.min(value.byteLength, count - offset);
+    const need = count - offset;
+    const toCopy = Math.min(value.byteLength, need);
     result.set(value.subarray(0, toCopy), offset);
     offset += toCopy;
+
+    // Save excess bytes for the next readExact call
+    if (value.byteLength > toCopy) {
+      readBuffer = new Uint8Array(value.subarray(toCopy));
+    }
   }
 
   return result;
@@ -148,6 +181,9 @@ export async function openConnection(port: SerialPort): Promise<RadioConnection>
   // Settle delay — macOS USB CDC serial needs time after open
   await new Promise(r => setTimeout(r, 500));
 
+  // Clear any stale data in the read buffer from a previous session
+  clearReadBuffer();
+
   if (!port.readable || !port.writable) {
     throw new RadioError('CONNECTION_LOST', 'Port opened but streams not available');
   }
@@ -171,6 +207,7 @@ export async function enterProgramMode(conn: RadioConnection): Promise<void> {
       await new Promise(r => setTimeout(r, 500));
 
       // Release and re-acquire reader to discard any stale/orphaned data
+      clearReadBuffer();
       try {
         conn.reader.releaseLock();
         conn.reader = conn.port.readable!.getReader();
