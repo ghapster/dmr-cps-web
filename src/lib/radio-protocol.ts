@@ -8,7 +8,7 @@
 // --- Constants ---------------------------------------------------------------
 
 const BAUD_RATE = 115200;
-const READ_TIMEOUT = 5000; // ms per read operation (macOS USB CDC needs more time)
+const READ_TIMEOUT = 8000; // ms per read operation (macOS USB CDC needs more time)
 const ACK = 0x06;
 
 // USB VID/PID filters for Anytone D578UV
@@ -175,15 +175,18 @@ export async function openConnection(port: SerialPort): Promise<RadioConnection>
     flowControl: 'none',
   });
 
-  // Set DTR/RTS signals — required by some USB CDC drivers (especially macOS)
+  // Toggle DTR/RTS signals — required by macOS USB CDC drivers to wake the device.
+  // Toggle low→high to simulate a fresh connection.
   try {
+    await (port as any).setSignals({ dataTerminalReady: false, requestToSend: false });
+    await new Promise(r => setTimeout(r, 100));
     await (port as any).setSignals({ dataTerminalReady: true, requestToSend: true });
   } catch {
     // setSignals may not be supported on all platforms — non-fatal
   }
 
-  // Settle delay — macOS USB CDC serial needs time after open + signal set
-  await new Promise(r => setTimeout(r, 800));
+  // Settle delay — macOS USB CDC serial needs time after open + signal toggle
+  await new Promise(r => setTimeout(r, 1500));
 
   if (!port.readable || !port.writable) {
     throw new RadioError('CONNECTION_LOST', 'Port opened but streams not available');
@@ -192,42 +195,14 @@ export async function openConnection(port: SerialPort): Promise<RadioConnection>
   const reader = port.readable.getReader();
   const writer = port.writable.getWriter();
 
-  // Flush any stale data in the receive buffer (common on reconnect / macOS)
-  try {
-    await drainReader(reader, 200);
-  } catch {
-    // Timeout expected when no stale data — that's fine
-  }
-
   return { port, reader, writer };
-}
-
-/** Drain any pending bytes from the reader (non-blocking, short timeout). */
-async function drainReader(
-  reader: ReadableStreamDefaultReader<Uint8Array>,
-  timeoutMs: number,
-): Promise<void> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const remaining = deadline - Date.now();
-    if (remaining <= 0) break;
-    try {
-      await Promise.race([
-        reader.read(),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('drain timeout')), remaining)
-        ),
-      ]);
-    } catch {
-      break; // Timeout = no more data, done draining
-    }
-  }
 }
 
 /**
  * Enter programming mode (with retry).
  * Send "PROGRAM" → expect "QX" + 0x06
  * Retries up to 3 times with increasing delays for USB CDC reliability.
+ * On retry, releases and re-acquires the reader to discard any orphaned reads.
  */
 export async function enterProgramMode(conn: RadioConnection): Promise<void> {
   let lastError: Error | null = null;
@@ -235,9 +210,16 @@ export async function enterProgramMode(conn: RadioConnection): Promise<void> {
   for (let attempt = 0; attempt < 3; attempt++) {
     if (attempt > 0) {
       // Wait before retry, increasing delay each time
-      await new Promise(r => setTimeout(r, 500 * attempt));
-      // Flush any stale response data from previous attempt
-      try { await drainReader(conn.reader, 200); } catch { /* expected */ }
+      await new Promise(r => setTimeout(r, 800 * attempt));
+
+      // Release and re-acquire the reader to flush any orphaned read promises
+      // from the previous failed attempt (critical for Web Streams API correctness)
+      try {
+        conn.reader.releaseLock();
+        conn.reader = conn.port.readable!.getReader();
+      } catch (e) {
+        console.warn('enterProgramMode: failed to reset reader:', e);
+      }
     }
 
     try {
