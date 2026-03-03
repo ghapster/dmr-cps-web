@@ -32,7 +32,7 @@ export default function Home() {
             { icon: CheckIcon, text: "Multi-select rows for bulk operations" },
           ]}
           screenshot={{
-            src: "/dmr-cps-landing/screenshots/hero-channel-editor.png",
+            src: "/screenshots/hero-channel-editor.png",
             alt: "Channel editor spreadsheet",
           }}
         />
@@ -48,7 +48,7 @@ export default function Home() {
             { icon: CheckIcon, text: "Write back with one click" },
           ]}
           screenshot={{
-            src: "/dmr-cps-landing/screenshots/usb-connected.png",
+            src: "/screenshots/usb-connected.png",
             alt: "USB connected to D578UV",
           }}
           reversed
@@ -64,7 +64,7 @@ export default function Home() {
             { icon: CheckIcon, text: "50-step undo/redo — mistakes aren't permanent" },
           ]}
           screenshot={{
-            src: "/dmr-cps-landing/screenshots/bulk-edit.png",
+            src: "/screenshots/bulk-edit.png",
             alt: "Bulk edit panel",
           }}
         />
@@ -80,7 +80,7 @@ export default function Home() {
             { icon: CheckIcon, text: "Boot screen, display brightness, timeout settings" },
           ]}
           screenshot={{
-            src: "/dmr-cps-landing/screenshots/settings-tabs.png",
+            src: "/screenshots/settings-tabs.png",
             alt: "Radio settings tabs",
           }}
           reversed

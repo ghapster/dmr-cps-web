@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'export',
-  basePath: '/dmr-cps-landing',
+  basePath: process.env.BASE_PATH || '/dmr-cps-web',
   images: {
     unoptimized: true,
   },

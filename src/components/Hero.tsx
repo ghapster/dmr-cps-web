@@ -56,7 +56,7 @@ export default function Hero() {
           {/* Screenshot */}
           <FadeIn direction="left" delay={200}>
             <MonitorFrame
-              src="/dmr-cps-landing/screenshots/hero-channel-editor.png"
+              src="/screenshots/hero-channel-editor.png"
               alt="AnyProg channel editor"
             />
           </FadeIn>
