@@ -246,6 +246,10 @@ export async function identify(conn: RadioConnection): Promise<RadioIdentity> {
 
   const model = decodeAscii(resp, 1, 7);
   const firmware = decodeAscii(resp, 9, 6);
+
+  // ACK the identify response
+  await conn.writer.write(new Uint8Array([ACK]));
+
   return { model: model.trim(), firmware: firmware.trim() };
 }
 
@@ -300,6 +304,11 @@ export async function readBlock(
     throw new RadioError('NACK',
       `Read at 0x${address.toString(16)}: missing ACK`);
   }
+
+  // ACK the read — host must acknowledge each block before radio sends the next.
+  // Without this, the radio stops responding after a few hundred blocks.
+  // Confirmed in dmrconfig, QDMR, and anytone-flash-tools source code.
+  await conn.writer.write(new Uint8Array([ACK]));
 
   return new Uint8Array(resp.subarray(6, 6 + length));
 }
