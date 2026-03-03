@@ -1,101 +1,97 @@
-import Image from "next/image";
+import Nav from "@/components/Nav";
+import Hero from "@/components/Hero";
+import Stats from "@/components/Stats";
+import HowItWorks from "@/components/HowItWorks";
+import FeatureSection from "@/components/FeatureSection";
+import ComparisonTable from "@/components/ComparisonTable";
+import Pricing from "@/components/Pricing";
+import FAQ from "@/components/FAQ";
+import Footer from "@/components/Footer";
+
+const CheckIcon = (
+  <svg fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+  </svg>
+);
 
 export default function Home() {
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="https://nextjs.org/icons/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+    <>
+      <Nav />
+      <Hero />
+      <Stats />
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="https://nextjs.org/icons/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+      <div id="features">
+        <FeatureSection
+          title="A real spreadsheet for your channels"
+          description="Click any cell to edit. Sort, filter, duplicate, and rearrange channels the way you'd expect — not the way a 2005 Windows app forces you to."
+          features={[
+            { icon: CheckIcon, text: "Inline editing — click any cell to change it" },
+            { icon: CheckIcon, text: "Sort by frequency, name, zone, or any column" },
+            { icon: CheckIcon, text: "Duplicate channels with one click" },
+            { icon: CheckIcon, text: "Multi-select rows for bulk operations" },
+          ]}
+          screenshot={{
+            src: "/dmr-cps-landing/screenshots/hero-channel-editor.png",
+            alt: "Channel editor spreadsheet",
+          }}
+        />
+
+        <FeatureSection
+          badge={{ label: "Mac Support", color: "green" }}
+          title="The only CPS that works on Mac"
+          description="AnyProg uses the Web Serial API to connect directly to your radio via USB. No drivers, no virtual machines, no Boot Camp. Just plug in and go."
+          features={[
+            { icon: CheckIcon, text: "Works on Chrome, Edge, and Opera" },
+            { icon: CheckIcon, text: "macOS, Windows, Linux, ChromeOS" },
+            { icon: CheckIcon, text: "Read codeplug from radio in under 60 seconds" },
+            { icon: CheckIcon, text: "Write back with one click" },
+          ]}
+          screenshot={{
+            src: "/dmr-cps-landing/screenshots/usb-connected.png",
+            alt: "USB connected to D578UV",
+          }}
+          reversed
+        />
+
+        <FeatureSection
+          title="Bulk edit, import, and look up — all built in"
+          description="Power tools that save hours of manual entry. Import frequencies from RadioReference, bulk-edit channel properties, and import/export CSV files."
+          features={[
+            { icon: CheckIcon, text: "Select multiple channels, apply changes in one action" },
+            { icon: CheckIcon, text: "RadioReference.com frequency lookup" },
+            { icon: CheckIcon, text: "CSV import and export for spreadsheet workflows" },
+            { icon: CheckIcon, text: "50-step undo/redo — mistakes aren't permanent" },
+          ]}
+          screenshot={{
+            src: "/dmr-cps-landing/screenshots/bulk-edit.png",
+            alt: "Bulk edit panel",
+          }}
+        />
+
+        <FeatureSection
+          badge={{ label: "New", color: "amber" }}
+          title="50+ radio settings, organized and editable"
+          description="Nine tabs covering display, audio, key functions, GPS, Bluetooth, APRS, and more. Dual-codec support reads settings from both the RDT file and radio memory."
+          features={[
+            { icon: CheckIcon, text: "9 organized settings tabs" },
+            { icon: CheckIcon, text: "APRS, GPS, and Bluetooth configuration" },
+            { icon: CheckIcon, text: "Custom key function assignments" },
+            { icon: CheckIcon, text: "Boot screen, display brightness, timeout settings" },
+          ]}
+          screenshot={{
+            src: "/dmr-cps-landing/screenshots/settings-tabs.png",
+            alt: "Radio settings tabs",
+          }}
+          reversed
+        />
+      </div>
+
+      <ComparisonTable />
+      <HowItWorks />
+      <Pricing />
+      <FAQ />
+      <Footer />
+    </>
   );
 }
