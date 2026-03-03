@@ -67,7 +67,6 @@ export function useRadio() {
   const cleanup = useCallback(async () => {
     const conn = connRef.current;
     if (conn) {
-      try { conn.reader.releaseLock(); } catch { /* ignore */ }
       try { conn.writer.releaseLock(); } catch { /* ignore */ }
       try { await conn.port.close(); } catch { /* ignore */ }
       connRef.current = null;
