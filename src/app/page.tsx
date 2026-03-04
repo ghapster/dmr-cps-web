@@ -7,6 +7,10 @@ import ComparisonTable from "@/components/ComparisonTable";
 import Pricing from "@/components/Pricing";
 import FAQ from "@/components/FAQ";
 import Footer from "@/components/Footer";
+import MockChannelEditor from "@/components/mocks/MockChannelEditor";
+import MockUSBConnected from "@/components/mocks/MockUSBConnected";
+import MockBulkEdit from "@/components/mocks/MockBulkEdit";
+import MockSettings from "@/components/mocks/MockSettings";
 
 const CheckIcon = (
   <svg fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
@@ -31,10 +35,7 @@ export default function Home() {
             { icon: CheckIcon, text: "Duplicate channels with one click" },
             { icon: CheckIcon, text: "Multi-select rows for bulk operations" },
           ]}
-          screenshot={{
-            src: "/screenshots/hero-channel-editor.png",
-            alt: "Channel editor spreadsheet",
-          }}
+          mockup={<MockChannelEditor />}
         />
 
         <FeatureSection
@@ -47,10 +48,7 @@ export default function Home() {
             { icon: CheckIcon, text: "Read codeplug from radio in under 60 seconds" },
             { icon: CheckIcon, text: "Write back with one click" },
           ]}
-          screenshot={{
-            src: "/screenshots/usb-connected.png",
-            alt: "USB connected to D578UV",
-          }}
+          mockup={<MockUSBConnected />}
           reversed
         />
 
@@ -63,10 +61,7 @@ export default function Home() {
             { icon: CheckIcon, text: "CSV import and export for spreadsheet workflows" },
             { icon: CheckIcon, text: "50-step undo/redo — mistakes aren't permanent" },
           ]}
-          screenshot={{
-            src: "/screenshots/bulk-edit.png",
-            alt: "Bulk edit panel",
-          }}
+          mockup={<MockBulkEdit />}
         />
 
         <FeatureSection
@@ -79,10 +74,7 @@ export default function Home() {
             { icon: CheckIcon, text: "Custom key function assignments" },
             { icon: CheckIcon, text: "Boot screen, display brightness, timeout settings" },
           ]}
-          screenshot={{
-            src: "/screenshots/settings-tabs.png",
-            alt: "Radio settings tabs",
-          }}
+          mockup={<MockSettings />}
           reversed
         />
       </div>

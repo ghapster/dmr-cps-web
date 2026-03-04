@@ -1,32 +1,33 @@
-import Image from "next/image";
+import { ReactNode } from "react";
 
 interface MonitorFrameProps {
-  src: string;
-  alt: string;
+  children: ReactNode;
   className?: string;
 }
 
-export default function MonitorFrame({ src, alt, className = "" }: MonitorFrameProps) {
+export default function MonitorFrame({ children, className = "" }: MonitorFrameProps) {
   return (
     <div className={`relative ${className}`}>
-      {/* Monitor frame */}
-      <div className="rounded-xl border border-white/[0.08] bg-[#111] shadow-2xl shadow-black/50 overflow-hidden">
-        {/* macOS title bar */}
-        <div className="flex items-center gap-2 px-4 py-3 bg-[#1a1a1a] border-b border-white/[0.06]">
-          <div className="w-3 h-3 rounded-full bg-[#ff5f57]" />
-          <div className="w-3 h-3 rounded-full bg-[#febc2e]" />
-          <div className="w-3 h-3 rounded-full bg-[#28c840]" />
-          <span className="ml-3 text-xs text-gray-500">AnyProg — Anytone D578UV</span>
+      <div
+        className="rounded-xl p-[5px] shadow-[0_25px_80px_-12px_rgba(0,0,0,0.6)]"
+        style={{
+          background: 'linear-gradient(160deg, #333 0%, #111 30%, #000 50%, #111 70%, #222 100%)',
+        }}
+      >
+        {/* Top bezel with traffic lights */}
+        <div
+          className="flex items-center gap-1.5 px-3 py-2 rounded-t-lg"
+          style={{
+            background: 'linear-gradient(180deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.03) 40%, transparent 100%)',
+          }}
+        >
+          <div className="w-2.5 h-2.5 rounded-full bg-[#ff5f57]" />
+          <div className="w-2.5 h-2.5 rounded-full bg-[#febc2e]" />
+          <div className="w-2.5 h-2.5 rounded-full bg-[#28c840]" />
         </div>
-        {/* Screenshot */}
-        <div className="relative aspect-[16/10] bg-gradient-to-br from-surface-light to-surface">
-          <Image
-            src={src}
-            alt={alt}
-            fill
-            className="object-cover"
-            sizes="(max-width: 768px) 100vw, 50vw"
-          />
+        {/* Screen content */}
+        <div className="rounded-b-lg overflow-hidden">
+          {children}
         </div>
       </div>
     </div>

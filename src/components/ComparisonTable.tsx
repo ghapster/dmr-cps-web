@@ -37,7 +37,6 @@ const rows: Row[] = [
   { feature: "Bulk edit", values: ["x", "check", "x", "x", "x"] },
   { feature: "Undo / redo", values: ["check", "check", "x", "x", "x"] },
   { feature: "Cloud sync", values: ["x", "check", "x", "x", "x"] },
-  { feature: "Price", values: ["dash", "dash", "dash", "dash", "dash"] },
 ];
 
 const priceRow = ["Free", "$5/mo", "Free", "~$30", "Free"];
@@ -50,35 +49,35 @@ const Cell = ({ value }: { value: CellValue }) => {
 
 export default function ComparisonTable() {
   return (
-    <section className="py-24">
-      <div className="max-w-6xl mx-auto px-6">
+    <section className="py-16 sm:py-24">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6">
         <FadeIn>
-          <div className="text-center mb-16">
-            <h2 className="text-3xl sm:text-4xl font-bold text-white">
+          <div className="text-center mb-10 sm:mb-16">
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white">
               How AnyProg Compares
             </h2>
-            <p className="mt-4 text-gray-400">
+            <p className="mt-4 text-sm sm:text-base text-gray-400">
               The only web-based CPS with Mac support and modern features.
             </p>
           </div>
         </FadeIn>
 
         <FadeIn delay={200}>
-          <div className="overflow-x-auto rounded-xl border border-white/[0.06]">
-            <table className="w-full text-sm">
+          <div className="overflow-x-auto rounded-xl border border-white/[0.06] -mx-4 sm:mx-0">
+            <table className="w-full text-xs sm:text-sm min-w-[480px]">
               <thead>
                 <tr className="bg-surface-light">
-                  <th className="text-left px-4 py-4 text-gray-400 font-medium w-[200px]">
+                  <th className="text-left px-3 sm:px-4 py-3 sm:py-4 text-gray-400 font-medium">
                     Feature
                   </th>
                   {columns.map((col, i) => (
                     <th
                       key={col}
-                      className={`px-4 py-4 text-center font-medium whitespace-nowrap ${
+                      className={`px-2 sm:px-4 py-3 sm:py-4 text-center font-medium whitespace-nowrap ${
                         i === 1
                           ? "text-primary-light bg-primary/[0.05]"
                           : "text-gray-400"
-                      }`}
+                      } ${i >= 2 ? "hidden sm:table-cell" : ""}`}
                     >
                       {col}
                     </th>
@@ -93,13 +92,13 @@ export default function ComparisonTable() {
                       ri % 2 === 0 ? "bg-[#0d0d0d]" : "bg-[#0a0a0a]"
                     }`}
                   >
-                    <td className="px-4 py-3 text-gray-300">{row.feature}</td>
+                    <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-gray-300">{row.feature}</td>
                     {row.values.map((v, ci) => (
                       <td
                         key={ci}
-                        className={`px-4 py-3 ${
+                        className={`px-2 sm:px-4 py-2.5 sm:py-3 ${
                           ci === 1 ? "bg-primary/[0.03]" : ""
-                        }`}
+                        } ${ci >= 2 ? "hidden sm:table-cell" : ""}`}
                       >
                         <Cell value={v} />
                       </td>
@@ -108,15 +107,15 @@ export default function ComparisonTable() {
                 ))}
                 {/* Price row */}
                 <tr className="border-t border-white/[0.06] bg-surface-light">
-                  <td className="px-4 py-3 text-gray-300 font-medium">Price</td>
+                  <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-gray-300 font-medium">Price</td>
                   {priceRow.map((p, i) => (
                     <td
                       key={i}
-                      className={`px-4 py-3 text-center font-medium ${
+                      className={`px-2 sm:px-4 py-2.5 sm:py-3 text-center font-medium ${
                         i === 1
                           ? "text-primary-light bg-primary/[0.05]"
                           : "text-gray-400"
-                      }`}
+                      } ${i >= 2 ? "hidden sm:table-cell" : ""}`}
                     >
                       {p}
                     </td>
@@ -125,6 +124,9 @@ export default function ComparisonTable() {
               </tbody>
             </table>
           </div>
+          <p className="mt-3 text-xs text-gray-600 text-center sm:hidden">
+            Scroll to see competitor comparison
+          </p>
         </FadeIn>
       </div>
     </section>

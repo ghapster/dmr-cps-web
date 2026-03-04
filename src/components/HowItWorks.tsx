@@ -36,11 +36,11 @@ const steps = [
 
 export default function HowItWorks() {
   return (
-    <section id="how-it-works" className="py-24">
+    <section id="how-it-works" className="py-16 sm:py-24">
       <div className="max-w-6xl mx-auto px-6">
         <FadeIn>
           <div className="text-center mb-16">
-            <h2 className="text-3xl sm:text-4xl font-bold text-white">
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white">
               How It Works
             </h2>
             <p className="mt-4 text-gray-400 max-w-2xl mx-auto">
@@ -49,10 +49,10 @@ export default function HowItWorks() {
           </div>
         </FadeIn>
 
-        <div className="grid md:grid-cols-3 gap-8">
+        <div className="grid md:grid-cols-3 gap-6 md:gap-8">
           {steps.map((step, i) => (
             <FadeIn key={step.title} delay={i * 150}>
-              <div className="relative p-8 rounded-xl bg-surface-light border border-white/[0.06] hover:border-white/[0.12] transition-colors group">
+              <div className="relative p-6 md:p-8 rounded-xl bg-surface-light border border-white/[0.06] hover:border-white/[0.12] transition-colors group">
                 {/* Connector line */}
                 {i < steps.length - 1 && (
                   <div className="hidden md:block absolute top-1/2 -right-4 w-8 border-t border-dashed border-white/[0.1]" />

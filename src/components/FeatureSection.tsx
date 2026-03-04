@@ -1,8 +1,9 @@
+import { ReactNode } from "react";
 import FadeIn from "./FadeIn";
 import MonitorFrame from "./MonitorFrame";
 
 interface FeatureItem {
-  icon: React.ReactNode;
+  icon: ReactNode;
   text: string;
 }
 
@@ -12,7 +13,7 @@ interface FeatureSectionProps {
   title: string;
   description: string;
   features: FeatureItem[];
-  screenshot: { src: string; alt: string };
+  mockup: ReactNode;
   reversed?: boolean;
 }
 
@@ -28,16 +29,14 @@ export default function FeatureSection({
   title,
   description,
   features,
-  screenshot,
+  mockup,
   reversed = false,
 }: FeatureSectionProps) {
   return (
-    <section id={id} className="py-20">
+    <section id={id} className="py-12 sm:py-20">
       <div className="max-w-6xl mx-auto px-6">
         <div
-          className={`grid lg:grid-cols-2 gap-12 lg:gap-16 items-center ${
-            reversed ? "lg:direction-rtl" : ""
-          }`}
+          className={`grid lg:grid-cols-2 gap-12 lg:gap-16 items-center`}
           style={reversed ? { direction: "rtl" } : undefined}
         >
           {/* Text side */}
@@ -50,7 +49,7 @@ export default function FeatureSection({
                   {badge.label}
                 </span>
               )}
-              <h3 className="text-2xl sm:text-3xl font-bold text-white leading-tight">
+              <h3 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white leading-tight">
                 {title}
               </h3>
               <p className="mt-4 text-gray-400 leading-relaxed">
@@ -70,10 +69,12 @@ export default function FeatureSection({
             </FadeIn>
           </div>
 
-          {/* Image side */}
+          {/* Mockup side */}
           <div style={reversed ? { direction: "ltr" } : undefined}>
             <FadeIn direction={reversed ? "left" : "right"} delay={200}>
-              <MonitorFrame src={screenshot.src} alt={screenshot.alt} />
+              <MonitorFrame>
+                {mockup}
+              </MonitorFrame>
             </FadeIn>
           </div>
         </div>

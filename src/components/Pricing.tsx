@@ -11,11 +11,11 @@ const Check = ({ text }: { text: string }) => (
 
 export default function Pricing() {
   return (
-    <section id="pricing" className="py-24">
+    <section id="pricing" className="py-16 sm:py-24">
       <div className="max-w-6xl mx-auto px-6">
         <FadeIn>
           <div className="text-center mb-16">
-            <h2 className="text-3xl sm:text-4xl font-bold text-white">
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white">
               Simple Pricing
             </h2>
             <p className="mt-4 text-gray-400 max-w-xl mx-auto">
@@ -27,7 +27,7 @@ export default function Pricing() {
         <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
           {/* Free */}
           <FadeIn delay={100}>
-            <div className="h-full p-8 rounded-xl bg-surface-light border border-white/[0.06] flex flex-col">
+            <div className="h-full p-6 sm:p-8 rounded-xl bg-surface-light border border-white/[0.06] flex flex-col">
               <h3 className="text-xl font-bold text-white">Free</h3>
               <div className="mt-4 flex items-baseline gap-1">
                 <span className="text-4xl font-bold text-white">$0</span>
@@ -59,7 +59,7 @@ export default function Pricing() {
 
           {/* Pro */}
           <FadeIn delay={250}>
-            <div className="relative h-full p-8 rounded-xl bg-surface-light border border-primary/30 flex flex-col">
+            <div className="relative h-full p-6 sm:p-8 rounded-xl bg-surface-light border border-primary/30 flex flex-col">
               {/* Glow */}
               <div className="absolute inset-0 rounded-xl bg-primary/[0.04] pointer-events-none" />
 
