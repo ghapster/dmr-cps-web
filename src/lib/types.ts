@@ -179,4 +179,5 @@ export type ActiveSection =
   | 'textMessages'
   | 'groupLists'
   | 'aprs'
-  | 'roaming';
+  | 'roaming'
+  | 'talkgroupLookup';

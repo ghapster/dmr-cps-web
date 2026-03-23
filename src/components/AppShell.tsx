@@ -42,6 +42,7 @@ export function AppShell({ activeSection, onSectionChange, codeplug, issues, chi
     { key: 'aprs', label: 'APRS' },
     { key: 'roaming', label: 'Roaming', count: codeplug ? codeplug.roamingChannels.length + codeplug.roamingZones.length : undefined },
     { key: 'settings', label: 'Settings' },
+    { key: 'talkgroupLookup', label: 'TG Lookup' },
   ];
 
   const errorCount = issues.filter(i => i.severity === 'error').length;

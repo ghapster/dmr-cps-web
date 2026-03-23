@@ -22,6 +22,7 @@ import { TextMessageEditor } from './components/TextMessageEditor';
 import { GroupListEditor } from './components/GroupListEditor';
 import { AprsEditor } from './components/AprsEditor';
 import { RoamingEditor } from './components/RoamingEditor';
+import { TalkgroupLookup } from './components/TalkgroupLookup';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { CsvImportModal } from './components/CsvImportModal';
 
@@ -34,7 +35,7 @@ function App() {
     addZone, deleteZone, updateZone,
     addRadioId, deleteRadioId, updateRadioId,
     addTextMessage, deleteTextMessage, updateTextMessage,
-    updateDigitalContact, updateAprsSettings, updateSettings, updateGeneralSettings,
+    updateDigitalContact, addDigitalContacts, updateAprsSettings, updateSettings, updateGeneralSettings,
     addScanList, deleteScanList, updateScanList,
     addGroupList, deleteGroupList, updateGroupList,
     addAnalogContact, deleteAnalogContact, updateAnalogContact,
@@ -278,6 +279,16 @@ function App() {
             onDeleteRoamingChannel={deleteRoamingChannel}
             onAddRoamingZone={() => { addRoamingZone(createDefaultRoamingZone(codeplug.roamingZones)); }}
             onDeleteRoamingZone={deleteRoamingZone}
+          />
+        );
+      case 'talkgroupLookup':
+        return (
+          <TalkgroupLookup
+            digitalContacts={codeplug.digitalContacts}
+            onAddDigitalContacts={(contacts) => {
+              addDigitalContacts(contacts);
+              toast(`Added ${contacts.length} talkgroup${contacts.length !== 1 ? 's' : ''} as digital contacts`);
+            }}
           />
         );
       case 'settings':

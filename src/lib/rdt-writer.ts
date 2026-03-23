@@ -6,6 +6,7 @@ import type {
   ScanList,
   GroupList,
   AnalogContact,
+  DigitalContact,
   TextMessage,
   RoamingChannel,
   RoamingZone,
@@ -457,6 +458,43 @@ export function createDefaultRoamingZone(zones: RoamingZone[]): RoamingZone {
     channelIndices: [],
     _raw: buf,
     _nameLen: newName.length,
+  };
+}
+
+/**
+ * Create a new digital contact record for a talkgroup or private call.
+ * The 36-byte record format: dmrId(3) + index(1) + 0x00(1) + callType(1) + 30 zero bytes (name area).
+ * The radio will display the contact with no name, but the TG ID and call type will function correctly.
+ */
+export function createDigitalContact(
+  existingContacts: DigitalContact[],
+  dmrId: number,
+  callType: 'group' | 'private',
+): DigitalContact {
+  const newIndex = existingContacts.length > 0
+    ? Math.max(...existingContacts.map(dc => dc.index), 0) + 1
+    : 1;
+
+  // Build a minimal 36-byte record
+  const buf = new Uint8Array(36);
+  // DMR ID — uint24_le at bytes 0-2
+  buf[0] = dmrId & 0xff;
+  buf[1] = (dmrId >> 8) & 0xff;
+  buf[2] = (dmrId >> 16) & 0xff;
+  // Index at byte 3
+  buf[3] = newIndex;
+  // 0x00 at byte 4
+  buf[4] = 0x00;
+  // Call type at byte 5 (0x10 = group, 0x00 = private)
+  buf[5] = callType === 'group' ? 0x10 : 0x00;
+  // Bytes 6-35 remain zero (name area)
+
+  return {
+    index: newIndex,
+    dmrId,
+    callType,
+    _raw: buf,
+    _blobOffset: -1, // sentinel: not yet in the blob
   };
 }
 

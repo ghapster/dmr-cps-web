@@ -204,6 +204,28 @@ export function useCodeplug() {
     }));
   }, [updateCodeplug]);
 
+  const addDigitalContacts = useCallback((contacts: DigitalContact[]) => {
+    updateCodeplug(cp => {
+      const newContacts = [...cp.digitalContacts, ...contacts];
+      // Rebuild the _digitalContactsRaw blob to include new records
+      const newRecordBytes = contacts.reduce((sum, c) => sum + c._raw.byteLength, 0);
+      const oldBlob = cp._digitalContactsRaw;
+      const newBlob = new Uint8Array(oldBlob.byteLength + newRecordBytes);
+      newBlob.set(oldBlob);
+      // Update size field (uint16_le at byte 0) — covers everything after the 2-byte size
+      const newSize = oldBlob.byteLength - 2 + newRecordBytes;
+      newBlob[0] = newSize & 0xff;
+      newBlob[1] = (newSize >> 8) & 0xff;
+      // Append new records
+      let pos = oldBlob.byteLength;
+      for (const c of contacts) {
+        newBlob.set(c._raw, pos);
+        pos += c._raw.byteLength;
+      }
+      return { ...cp, digitalContacts: newContacts, _digitalContactsRaw: newBlob };
+    });
+  }, [updateCodeplug]);
+
   const updateAprsSettings = useCallback((changes: Partial<AprsSettings>) => {
     updateCodeplug(cp => ({
       ...cp,
@@ -411,6 +433,7 @@ export function useCodeplug() {
     deleteTextMessage,
     updateTextMessage,
     updateDigitalContact,
+    addDigitalContacts,
     updateAprsSettings,
     updateSettings,
     updateGeneralSettings,
