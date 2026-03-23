@@ -58,13 +58,9 @@ export function FileToolbar({
         onDrop={handleDrop}
       >
         <div className="flex items-center gap-2">
-          <svg viewBox="0 0 24 24" className="w-7 h-7 text-primary-light" fill="none" stroke="currentColor" strokeWidth={2}>
-            <path d="M5.636 18.364a9 9 0 0 1 0-12.728M18.364 5.636a9 9 0 0 1 0 12.728" />
-            <path d="M8.464 15.536a5 5 0 0 1 0-7.072M15.536 8.464a5 5 0 0 1 0 7.072" />
-            <circle cx="12" cy="12" r="1" fill="currentColor" />
-          </svg>
+          <img src="/logo.svg" alt="DMR CPS" className="w-8 h-8 rounded-md" />
           <span className="text-sm font-semibold text-primary-light tracking-wide">DMR CPS</span>
-          <span className="text-xs font-medium text-text-dimmed">V2.13</span>
+          <span className="text-xs font-medium text-text-dimmed">V2.14</span>
         </div>
 
         <input
