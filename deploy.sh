@@ -58,9 +58,13 @@ fi
 cp "$TMPDIR/index.html" .
 mkdir -p assets
 cp "$TMPDIR/assets/"* assets/
+# Copy public directory files (favicons, logos, etc.)
+for f in "$TMPDIR"/*.svg "$TMPDIR"/*.png "$TMPDIR"/*.ico; do
+  [ -f "$f" ] && cp "$f" .
+done
 
 # Stage only the deploy files (not node_modules, dist, etc)
-git add index.html assets/
+git add index.html assets/ *.svg 2>/dev/null; git add index.html assets/
 
 # Check if there's anything to commit
 if git diff --cached --quiet; then

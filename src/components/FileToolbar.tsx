@@ -58,7 +58,7 @@ export function FileToolbar({
         onDrop={handleDrop}
       >
         <div className="flex items-center gap-2">
-          <img src="/logo.svg" alt="DMR CPS" className="w-8 h-8 rounded-md" />
+          <img src={`${import.meta.env.BASE_URL}logo.svg`} alt="DMR CPS" className="w-8 h-8 rounded-md" />
           <span className="text-sm font-semibold text-primary-light tracking-wide">DMR CPS</span>
           <span className="text-xs font-medium text-text-dimmed">V2.14</span>
         </div>
