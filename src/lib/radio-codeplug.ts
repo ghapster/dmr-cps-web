@@ -317,7 +317,10 @@ export async function readRadioCodeplug(
   const scanListSlots = readBitmap(scanListBitmapData, MAX_SCAN_LISTS);
   const radioIdSlots = readBitmap(radioIdBitmapData, MAX_RADIO_IDS);
   const groupListSlots = readBitmap(groupListBitmapData, MAX_GROUP_LISTS);
-  const contactSlots = readBitmap(contactBitmapData, MAX_DIGITAL_CONTACTS);
+  // The digital contact bitmap is INVERTED on the D578UV: a cleared bit marks a
+  // used slot, a set bit (erased flash, 0xFF) marks a free one. Verified against a
+  // D578UV2 (fw V100): 32 contacts -> bitmap 00 00 00 00 ff ff ...; slot 32+ = 0xFF.
+  const contactSlots = readBitmap(contactBitmapData.map(b => ~b & 0xff), MAX_DIGITAL_CONTACTS);
   const messageSlots = readBytemap(messageBytemap, MAX_TEXT_MESSAGES);
   const roamingChSlots = readBitmap(roamingChBitmapData, MAX_ROAMING_CHANNELS);
   const roamingZoneSlots = readBitmap(roamingZoneBitmapData, MAX_ROAMING_ZONES);
@@ -635,11 +638,15 @@ function parseRadioId(data: Uint8Array, slotIndex: number): RadioId | null {
 
 /** Parse a 100-byte digital contact record. */
 function parseRadioDigitalContact(data: Uint8Array, slotIndex: number): DigitalContact | null {
+  // Record layout (verified on D578UV2 fw V100, matches qdmr's AnyTone layout):
+  //   0x00 call type (0 = private, 1 = group, 2 = all call)
+  //   0x01 name (ASCII, null-padded)
+  //   0x23 DMR ID, 4-byte big-endian BCD (e.g. 00 00 31 25 = TG 3125)
   const contactType = data[0x00];
-  const callType = contactType === 0 ? 'group' as const :
-                   contactType === 1 ? 'private' as const : 'all' as const;
+  const callType = contactType === 0 ? 'private' as const :
+                   contactType === 1 ? 'group' as const : 'all' as const;
 
-  const dmrId = decodeBcdId(data, 0x24);
+  const dmrId = decodeBcdId(data, 0x23);
 
   // Build minimal _raw for RDT blob compatibility
   // RDT digital contact: dmrId(3, uint24_le) + index(1) + 0x00 + callType(1) + data
@@ -987,14 +994,15 @@ export function serializeToRadioMemory(codeplug: Codeplug): WriteRegion[] {
   }
   writes.push({ address: MEM.SCAN_LIST_BITMAP, data: scanListBitmap });
 
-  // Build digital contact bitmap and write contacts
-  const contactBitmap = new Uint8Array(512);
+  // Build digital contact bitmap and write contacts.
+  // Inverted bitmap (see readRadioCodeplug): start all-free (0xFF), clear bit = used.
+  const contactBitmap = new Uint8Array(512).fill(0xff);
   for (const dc of codeplug.digitalContacts) {
     const slot = dc.index - 1;
     if (slot >= 0 && slot < MAX_DIGITAL_CONTACTS) {
       const byteIdx = Math.floor(slot / 8);
       const bitIdx = slot % 8;
-      contactBitmap[byteIdx] |= (1 << bitIdx);
+      contactBitmap[byteIdx] &= ~(1 << bitIdx);
 
       const data = serializeRadioDigitalContact(dc);
       writes.push({ address: digitalContactAddress(slot), data });
@@ -1176,11 +1184,11 @@ function serializeRadioScanList(sl: ScanList): Uint8Array {
 function serializeRadioDigitalContact(dc: DigitalContact): Uint8Array {
   const data = new Uint8Array(DIGITAL_CONTACT_RECORD_SIZE);
 
-  // Type byte at 0x00
-  data[0x00] = dc.callType === 'group' ? 0 : dc.callType === 'private' ? 1 : 2;
+  // Type byte at 0x00 (0 = private, 1 = group, 2 = all call)
+  data[0x00] = dc.callType === 'private' ? 0 : dc.callType === 'group' ? 1 : 2;
 
-  // DMR ID as BCD at 0x24
-  data.set(encodeBcdId(dc.dmrId), 0x24);
+  // DMR ID as 4-byte BCD at 0x23
+  data.set(encodeBcdId(dc.dmrId), 0x23);
 
   return data;
 }
