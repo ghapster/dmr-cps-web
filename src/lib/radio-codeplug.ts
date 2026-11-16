@@ -1039,6 +1039,19 @@ export function serializeToRadioMemory(codeplug: Codeplug): WriteRegion[] {
   }
   writes.push({ address: MEM.MESSAGE_BYTEMAP, data: messageBytemap });
 
+  // Roaming records: the app only models their name; frequencies etc. live in
+  // _raw, whose layout depends on the source (radio memory vs. .rdt file).
+  // Only write roaming data that is in radio format; otherwise leave the radio's
+  // roaming memory (records AND bitmaps) untouched rather than write garbage.
+  const roamingIsRadioFormat =
+    codeplug.roamingChannels.every(rc => rc._raw.length === ROAMING_CHANNEL_SIZE) &&
+    codeplug.roamingZones.every(rz => rz._raw.length === ROAMING_ZONE_SIZE);
+  if (!roamingIsRadioFormat) {
+    console.warn('serializeToRadioMemory: roaming data is not in radio format (loaded from .rdt?); ' +
+      'roaming channels/zones will not be written.');
+    return writes;
+  }
+
   // Build roaming channel bitmap and write
   const roamingChBitmap = new Uint8Array(32);
   for (const rc of codeplug.roamingChannels) {
@@ -1069,7 +1082,46 @@ export function serializeToRadioMemory(codeplug: Codeplug): WriteRegion[] {
 }
 
 /**
+ * Merge an edited write plan onto the radio's current memory.
+ *
+ * serializeToRadioMemory() rebuilds records from the app's model, which does not
+ * cover every field (contact names, several channel/scan-list bytes, ...). Writing
+ * its output directly would wipe those fields. Instead:
+ *
+ *   - `base` is the plan serialized from what is on the radio right now,
+ *   - `edit` is the plan serialized from the codeplug being written.
+ *
+ * A byte is taken from `edit` only where edit and base disagree (i.e. the user's
+ * change); every other byte keeps the radio's current value. New regions (no base
+ * counterpart) are written as serialized. Regions that end up identical to the
+ * radio are dropped. Lengths are rounded up to 16-byte blocks, as writeRegion does.
+ */
+export async function mergeWritePlan(
+  edit: WriteRegion[],
+  base: WriteRegion[],
+  readCurrent: (address: number, length: number) => Promise<Uint8Array>,
+): Promise<WriteRegion[]> {
+  const baseByAddr = new Map(base.map(w => [w.address, w.data]));
+  const merged: WriteRegion[] = [];
+  for (const w of edit) {
+    const len = Math.ceil(w.data.length / 16) * 16;
+    const current = await readCurrent(w.address, len);
+    const out = new Uint8Array(current);
+    const b = baseByAddr.get(w.address);
+    for (let i = 0; i < w.data.length; i++) {
+      if (!b || i >= b.length || w.data[i] !== b[i]) out[i] = w.data[i];
+    }
+    if (out.some((v, i) => v !== current[i])) merged.push({ address: w.address, data: out });
+  }
+  return merged;
+}
+
+/**
  * Write a codeplug to the radio.
+ *
+ * Reads the radio's current codeplug first and only writes the bytes that the
+ * edited codeplug actually changes (see mergeWritePlan), so fields the app does
+ * not model are preserved.
  */
 export async function writeRadioCodeplug(
   conn: RadioConnection,
@@ -1079,8 +1131,15 @@ export async function writeRadioCodeplug(
   const report = (phase: string, current: number, total: number) =>
     onProgress?.({ phase, current, total });
 
+  report('Reading current radio state...', 0, 100);
+  const baseline = await readRadioCodeplug(conn);
+
   report('Serializing codeplug...', 0, 100);
-  const writes = serializeToRadioMemory(codeplug);
+  const writes = await mergeWritePlan(
+    serializeToRadioMemory(codeplug),
+    serializeToRadioMemory(baseline),
+    (address, length) => readRegion(conn, address, length),
+  );
 
   // Calculate total bytes to write
   const totalBytes = writes.reduce((sum, w) => sum + w.data.length, 0);
