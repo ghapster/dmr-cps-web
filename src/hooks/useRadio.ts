@@ -157,7 +157,10 @@ export function useRadio() {
       return codeplug;
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Read failed';
-      // Close the connection so user can cleanly reconnect
+      // End the programming session (so the radio leaves PC/WRITE mode instead
+      // of needing a power-cycle), then close so the user can cleanly reconnect.
+      const c = connRef.current;
+      if (c) { try { await exitProgramMode(c); } catch { /* ignore */ } }
       await cleanup();
       setStatus('error', { error: msg, progress: null, progressLabel: null });
       return null;
@@ -178,7 +181,10 @@ export function useRadio() {
       return true;
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Write failed';
-      // Close the connection so user can cleanly reconnect
+      // End the programming session (so the radio leaves PC/WRITE mode instead
+      // of needing a power-cycle), then close so the user can cleanly reconnect.
+      const c = connRef.current;
+      if (c) { try { await exitProgramMode(c); } catch { /* ignore */ } }
       await cleanup();
       setStatus('error', { error: msg, progress: null, progressLabel: null });
       return false;

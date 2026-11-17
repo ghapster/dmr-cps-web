@@ -382,6 +382,10 @@ export async function writeBlock(
   if (data.length !== 16) {
     throw new Error(`writeBlock: data must be 16 bytes, got ${data.length}`);
   }
+  // The radio ignores (never ACKs) writes that are not 16-byte aligned.
+  if (address % 16 !== 0) {
+    throw new Error(`writeBlock: address 0x${address.toString(16)} is not 16-byte aligned`);
+  }
 
   const checksum = computeChecksum(address, 16, data);
 
