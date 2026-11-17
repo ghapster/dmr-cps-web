@@ -16,7 +16,13 @@
 const BAUD_RATE = 921600;
 const ACK = 0x06;
 const READ_BLOCK_SIZE = 128;
-const BUFFER_SIZE = 16384; // 16KB — default 255 is way too small at 921600 baud
+// Chrome's Web Serial send path is a ring buffer of `bufferSize` bytes. When a
+// write straddles the wrap point it goes out as two USB packets, and the
+// D578UV silently drops a command split that way (no ACK -> 5 s timeout).
+// Observed with usbmon on Linux: the 24-byte 'W' frame at 16373..16396 bytes
+// was sent as 11 + 13 bytes. A full connect+read+write sends ~125 KB, so use a
+// 1 MiB buffer, and refuse to send a command that would straddle a boundary.
+const BUFFER_SIZE = 1 << 20;
 
 // USB VID/PID filters for Anytone D578UV
 const USB_FILTERS: SerialPortFilter[] = [
@@ -61,6 +67,23 @@ export interface RadioIdentity {
 
 let readBuffer: Uint8Array | null = null;
 
+// --- Wire log (ring buffer, dumped to the console when an operation fails) ---
+const WIRE_LOG_MAX = 400;
+const wireLogLines: string[] = [];
+const wireT0 = typeof performance !== 'undefined' ? performance.now() : 0;
+export function wireLog(dir: string, data?: Uint8Array | string): void {
+  const t = ((typeof performance !== 'undefined' ? performance.now() : 0) - wireT0).toFixed(1);
+  let body = '';
+  if (data instanceof Uint8Array) {
+    body = `${data.byteLength}B ` + Array.from(data.subarray(0, 24), x => x.toString(16).padStart(2, '0')).join(' ') +
+      (data.byteLength > 24 ? ' …' : '');
+  } else if (data) body = data;
+  wireLogLines.push(`${t.padStart(10)}ms ${dir} ${body}`);
+  if (wireLogLines.length > WIRE_LOG_MAX) wireLogLines.shift();
+}
+/** Recent serial traffic, oldest first. */
+export function getWireLog(): string[] { return [...wireLogLines]; }
+
 function clearReadBuffer(): void {
   readBuffer = null;
 }
@@ -97,6 +120,7 @@ async function readExact(
 
   while (offset < count) {
     const { value, done } = await reader.read();
+    wireLog('RX', done ? 'done' : value);
 
     if (done || !value) {
       throw new RadioError('CONNECTION_LOST', 'Serial port closed during read');
@@ -131,6 +155,7 @@ async function readWithTimeout(
     const tid = setTimeout(() => {
       if (!settled) {
         settled = true;
+        wireLog('TIMEOUT', `waiting for ${count}B, ${timeoutMs}ms`);
         resetReader(conn); // Cancel orphaned read, get fresh reader
         reject(new RadioError('TIMEOUT', `Read timed out after ${timeoutMs}ms`));
       }
@@ -231,10 +256,27 @@ export async function openConnection(port: SerialPort): Promise<RadioConnection>
     throw new RadioError('CONNECTION_LOST', 'Port opened but streams not available');
   }
 
+  const writer = port.writable.getWriter();
+  const rawWrite = writer.write.bind(writer);
+  let bytesSent = 0;
+  writer.write = (chunk?: Uint8Array) => {
+    if (chunk) {
+      const before = bytesSent % BUFFER_SIZE;
+      if (before + chunk.byteLength > BUFFER_SIZE) {
+        wireLog('GUARD', `command would straddle the ${BUFFER_SIZE}-byte send buffer boundary`);
+        return Promise.reject(new RadioError('CONNECTION_LOST',
+          'Serial send buffer exhausted for this connection — reconnect and try again (nothing was sent).'));
+      }
+      bytesSent += chunk.byteLength;
+      wireLog('TX', chunk);
+    }
+    return rawWrite(chunk);
+  };
+  wireLog('OPEN');
   return {
     port,
     reader: port.readable.getReader(),
-    writer: port.writable.getWriter(),
+    writer,
   };
 }
 
@@ -381,6 +423,10 @@ export async function writeBlock(
 ): Promise<void> {
   if (data.length !== 16) {
     throw new Error(`writeBlock: data must be 16 bytes, got ${data.length}`);
+  }
+  // The radio ignores (never ACKs) writes that are not 16-byte aligned.
+  if (address % 16 !== 0) {
+    throw new Error(`writeBlock: address 0x${address.toString(16)} is not 16-byte aligned`);
   }
 
   const checksum = computeChecksum(address, 16, data);

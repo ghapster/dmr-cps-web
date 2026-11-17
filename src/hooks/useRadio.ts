@@ -17,7 +17,22 @@ import {
   RadioError,
 } from '../lib/radio-protocol';
 import type { RadioConnection, RadioIdentity } from '../lib/radio-protocol';
-import { readRadioCodeplug, writeRadioCodeplug } from '../lib/radio-codeplug';
+import { getWireLog, wireLog } from '../lib/radio-protocol';
+
+/** Dump the recent serial traffic to the console (and to a local diagnostics
+ *  receiver when built with VITE_DIAG_URL). */
+function reportFailure(op: string, err: unknown): void {
+  const e = err instanceof Error ? err : new Error(String(err));
+  wireLog('ERROR', `${op}: ${e.message}`);
+  const lines = getWireLog();
+  console.error(`[radio] ${op} failed: ${e.message}\n${e.stack ?? ''}\n--- last ${lines.length} serial events ---\n${lines.join('\n')}`);
+  const url = import.meta.env.VITE_DIAG_URL as string | undefined;
+  if (url) {
+    fetch(url, { method: 'POST', body: `${op}: ${e.message}\n${e.stack ?? ''}\n${lines.join('\n')}` }).catch(() => { /* best effort */ });
+  }
+}
+import { readRadioCodeplug } from '../lib/radio-codeplug';
+import { writeFullCodeplug } from '../lib/radio-writer';
 import type { ReadProgress } from '../lib/radio-codeplug';
 
 export type RadioStatus =
@@ -156,8 +171,12 @@ export function useRadio() {
       setStatus('connected', { progress: null, progressLabel: null });
       return codeplug;
     } catch (e) {
+      reportFailure('read', e);
       const msg = e instanceof Error ? e.message : 'Read failed';
-      // Close the connection so user can cleanly reconnect
+      // End the programming session (so the radio leaves PC/WRITE mode instead
+      // of needing a power-cycle), then close so the user can cleanly reconnect.
+      const c = connRef.current;
+      if (c) { try { await exitProgramMode(c); } catch { /* ignore */ } }
       await cleanup();
       setStatus('error', { error: msg, progress: null, progressLabel: null });
       return null;
@@ -167,22 +186,32 @@ export function useRadio() {
   /**
    * Write the codeplug to the radio.
    */
-  const writeToRadio = useCallback(async (codeplug: Codeplug): Promise<boolean> => {
+  const writeToRadio = useCallback(async (codeplug: Codeplug): Promise<string | null> => {
     const conn = connRef.current;
-    if (!conn) return false;
+    if (!conn) return 'Not connected';
 
     try {
       setStatus('writing', { progress: 0, progressLabel: 'Starting write...' });
-      await writeRadioCodeplug(conn, codeplug, setProgress);
-      setStatus('connected', { progress: null, progressLabel: null });
-      return true;
+      await writeFullCodeplug(conn, codeplug, setProgress);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Write failed';
-      // Close the connection so user can cleanly reconnect
+      reportFailure('write', e);
+      const msg = (e instanceof Error ? e.message : 'Write failed') +
+        ' — Power-cycle the radio. The incomplete write was NOT saved.';
+      // Deliberately do NOT send END: the radio commits a session on END, and
+      // committing a partial write corrupts the codeplug. Without END the
+      // radio discards it when power-cycled.
       await cleanup();
       setStatus('error', { error: msg, progress: null, progressLabel: null });
-      return false;
+      return msg;
     }
+
+    // Complete: END commits the write; the radio then reboots (USB drops).
+    setStatus('writing', { progressLabel: 'Saving on radio...' });
+    try { await exitProgramMode(conn); } catch { /* radio may already be rebooting */ }
+    await cleanup();
+    identityRef.current = null;
+    setStatus('disconnected', { model: null, firmware: null, progress: null, progressLabel: null });
+    return null;
   }, [setStatus, setProgress, cleanup]);
 
   return {
