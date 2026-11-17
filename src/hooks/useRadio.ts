@@ -17,7 +17,8 @@ import {
   RadioError,
 } from '../lib/radio-protocol';
 import type { RadioConnection, RadioIdentity } from '../lib/radio-protocol';
-import { readRadioCodeplug, writeRadioCodeplug } from '../lib/radio-codeplug';
+import { readRadioCodeplug } from '../lib/radio-codeplug';
+import { writeFullCodeplug } from '../lib/radio-writer';
 import type { ReadProgress } from '../lib/radio-codeplug';
 
 export type RadioStatus =
@@ -170,25 +171,31 @@ export function useRadio() {
   /**
    * Write the codeplug to the radio.
    */
-  const writeToRadio = useCallback(async (codeplug: Codeplug): Promise<boolean> => {
+  const writeToRadio = useCallback(async (codeplug: Codeplug): Promise<string | null> => {
     const conn = connRef.current;
-    if (!conn) return false;
+    if (!conn) return 'Not connected';
 
     try {
       setStatus('writing', { progress: 0, progressLabel: 'Starting write...' });
-      await writeRadioCodeplug(conn, codeplug, setProgress);
-      setStatus('connected', { progress: null, progressLabel: null });
-      return true;
+      await writeFullCodeplug(conn, codeplug, setProgress);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Write failed';
-      // End the programming session (so the radio leaves PC/WRITE mode instead
-      // of needing a power-cycle), then close so the user can cleanly reconnect.
-      const c = connRef.current;
-      if (c) { try { await exitProgramMode(c); } catch { /* ignore */ } }
+      const msg = (e instanceof Error ? e.message : 'Write failed') +
+        ' — Power-cycle the radio. The incomplete write was NOT saved.';
+      // Deliberately do NOT send END: the radio commits a session on END, and
+      // committing a partial write corrupts the codeplug. Without END the
+      // radio discards it when power-cycled.
       await cleanup();
       setStatus('error', { error: msg, progress: null, progressLabel: null });
-      return false;
+      return msg;
     }
+
+    // Complete: END commits the write; the radio then reboots (USB drops).
+    setStatus('writing', { progressLabel: 'Saving on radio...' });
+    try { await exitProgramMode(conn); } catch { /* radio may already be rebooting */ }
+    await cleanup();
+    identityRef.current = null;
+    setStatus('disconnected', { model: null, firmware: null, progress: null, progressLabel: null });
+    return null;
   }, [setStatus, setProgress, cleanup]);
 
   return {

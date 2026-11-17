@@ -112,11 +112,11 @@ function App() {
 
   const handleRadioWrite = useCallback(async () => {
     if (!codeplug) return;
-    const success = await radio.writeToRadio(codeplug);
-    if (success) {
-      toast('Codeplug written to radio');
-    } else if (radio.error) {
-      toast(`Write failed: ${radio.error}`, 'error');
+    const error = await radio.writeToRadio(codeplug);
+    if (error === null) {
+      toast('Codeplug written. The radio restarts to apply it — reconnect to read it back.');
+    } else {
+      toast(`Write failed: ${error}`, 'error');
     }
     setShowWriteConfirm(false);
   }, [codeplug, radio, toast]);

@@ -29,7 +29,7 @@ import type {
 } from './types';
 
 import type { RadioConnection } from './radio-protocol';
-import { readRegion, writeRegion } from './radio-protocol';
+import { readRegion } from './radio-protocol';
 
 // =============================================================================
 // Memory Map Constants
@@ -1081,116 +1081,6 @@ export function serializeToRadioMemory(codeplug: Codeplug): WriteRegion[] {
   return writes;
 }
 
-/**
- * Merge an edited write plan onto the radio's current memory.
- *
- * serializeToRadioMemory() rebuilds records from the app's model, which does not
- * cover every field (contact names, several channel/scan-list bytes, ...). Writing
- * its output directly would wipe those fields. Instead:
- *
- *   - `base` is the plan serialized from what is on the radio right now,
- *   - `edit` is the plan serialized from the codeplug being written.
- *
- * A byte is taken from `edit` only where edit and base disagree (i.e. the user's
- * change); every other byte keeps the radio's current value. New regions (no base
- * counterpart) are written as serialized.
- *
- * The radio only accepts 'W' writes of whole 16-byte blocks at 16-byte-aligned
- * addresses; it silently ignores anything else, which surfaced as a write
- * timeout. Several records are not block-aligned (e.g. 100-byte digital contacts
- * packed back to back at 0x2680000, 0x2680064, ...), so the changed bytes are
- * gathered into aligned blocks, filled from the radio's current memory, and only
- * blocks that actually change are returned (coalesced into contiguous runs).
- */
-export async function mergeWritePlan(
-  edit: WriteRegion[],
-  base: WriteRegion[],
-  readCurrent: (address: number, length: number) => Promise<Uint8Array>,
-): Promise<WriteRegion[]> {
-  const BLOCK = 16;
-  const baseByAddr = new Map(base.map(w => [w.address, w.data]));
-
-  // Absolute address → desired byte, for every byte the edit changes.
-  const changes = new Map<number, number>();
-  for (const w of edit) {
-    const b = baseByAddr.get(w.address);
-    for (let i = 0; i < w.data.length; i++) {
-      if (!b || i >= b.length || w.data[i] !== b[i]) changes.set(w.address + i, w.data[i]);
-    }
-  }
-  if (changes.size === 0) return [];
-
-  // Aligned blocks touched by a change, grouped into contiguous runs.
-  const blocks = [...new Set([...changes.keys()].map(a => a - (a % BLOCK)))].sort((a, b) => a - b);
-  const runs: { address: number; count: number }[] = [];
-  for (const addr of blocks) {
-    const last = runs[runs.length - 1];
-    if (last && last.address + last.count * BLOCK === addr) last.count++;
-    else runs.push({ address: addr, count: 1 });
-  }
-
-  const merged: WriteRegion[] = [];
-  for (const run of runs) {
-    const current = await readCurrent(run.address, run.count * BLOCK);
-    const out = new Uint8Array(current);
-    for (let i = 0; i < out.length; i++) {
-      const v = changes.get(run.address + i);
-      if (v !== undefined) out[i] = v;
-    }
-    // Emit only the blocks that differ from the radio, keeping runs contiguous.
-    let start = -1;
-    for (let k = 0; k <= run.count; k++) {
-      const dirty = k < run.count &&
-        out.subarray(k * BLOCK, (k + 1) * BLOCK).some((v, j) => v !== current[k * BLOCK + j]);
-      if (dirty && start < 0) start = k;
-      if (!dirty && start >= 0) {
-        merged.push({ address: run.address + start * BLOCK, data: out.slice(start * BLOCK, k * BLOCK) });
-        start = -1;
-      }
-    }
-  }
-  return merged;
-}
-
-/**
- * Write a codeplug to the radio.
- *
- * Reads the radio's current codeplug first and only writes the bytes that the
- * edited codeplug actually changes (see mergeWritePlan), so fields the app does
- * not model are preserved.
- */
-export async function writeRadioCodeplug(
-  conn: RadioConnection,
-  codeplug: Codeplug,
-  onProgress?: (p: ReadProgress) => void,
-): Promise<void> {
-  const report = (phase: string, current: number, total: number) =>
-    onProgress?.({ phase, current, total });
-
-  report('Reading current radio state...', 0, 100);
-  const baseline = await readRadioCodeplug(conn);
-
-  report('Serializing codeplug...', 0, 100);
-  const writes = await mergeWritePlan(
-    serializeToRadioMemory(codeplug),
-    serializeToRadioMemory(baseline),
-    (address, length) => readRegion(conn, address, length),
-  );
-
-  // Calculate total bytes to write
-  const totalBytes = writes.reduce((sum, w) => sum + w.data.length, 0);
-  let bytesWritten = 0;
-
-  for (const w of writes) {
-    report('Writing to radio...', bytesWritten, totalBytes);
-    await writeRegion(conn, w.address, w.data, (written) => {
-      report('Writing to radio...', bytesWritten + written, totalBytes);
-    });
-    bytesWritten += w.data.length;
-  }
-
-  report('Write complete', totalBytes, totalBytes);
-}
 
 // =============================================================================
 // Codeplug → Radio Memory Serializers
