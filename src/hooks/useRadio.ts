@@ -17,6 +17,20 @@ import {
   RadioError,
 } from '../lib/radio-protocol';
 import type { RadioConnection, RadioIdentity } from '../lib/radio-protocol';
+import { getWireLog, wireLog } from '../lib/radio-protocol';
+
+/** Dump the recent serial traffic to the console (and to a local diagnostics
+ *  receiver when built with VITE_DIAG_URL). */
+function reportFailure(op: string, err: unknown): void {
+  const e = err instanceof Error ? err : new Error(String(err));
+  wireLog('ERROR', `${op}: ${e.message}`);
+  const lines = getWireLog();
+  console.error(`[radio] ${op} failed: ${e.message}\n${e.stack ?? ''}\n--- last ${lines.length} serial events ---\n${lines.join('\n')}`);
+  const url = import.meta.env.VITE_DIAG_URL as string | undefined;
+  if (url) {
+    fetch(url, { method: 'POST', body: `${op}: ${e.message}\n${e.stack ?? ''}\n${lines.join('\n')}` }).catch(() => { /* best effort */ });
+  }
+}
 import { readRadioCodeplug } from '../lib/radio-codeplug';
 import { writeFullCodeplug } from '../lib/radio-writer';
 import type { ReadProgress } from '../lib/radio-codeplug';
@@ -157,6 +171,7 @@ export function useRadio() {
       setStatus('connected', { progress: null, progressLabel: null });
       return codeplug;
     } catch (e) {
+      reportFailure('read', e);
       const msg = e instanceof Error ? e.message : 'Read failed';
       // End the programming session (so the radio leaves PC/WRITE mode instead
       // of needing a power-cycle), then close so the user can cleanly reconnect.
@@ -179,6 +194,7 @@ export function useRadio() {
       setStatus('writing', { progress: 0, progressLabel: 'Starting write...' });
       await writeFullCodeplug(conn, codeplug, setProgress);
     } catch (e) {
+      reportFailure('write', e);
       const msg = (e instanceof Error ? e.message : 'Write failed') +
         ' — Power-cycle the radio. The incomplete write was NOT saved.';
       // Deliberately do NOT send END: the radio commits a session on END, and

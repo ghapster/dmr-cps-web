@@ -145,7 +145,16 @@ function normalize(cp: Codeplug): Codeplug {
         `(found #${c.index} at position ${i + 1}). Not writing.`);
   });
   const textMessages = [...cp.textMessages].sort((a, b) => a.index - b.index).map((m, i) => ({ ...m, index: i }));
-  return { ...cp, digitalContacts: contacts, textMessages };
+  // Zones and scan lists must not reference channels that do not exist.
+  const channelIds = new Set(cp.channels.map(c => c.index));
+  const zones = cp.zones.map(z => z.channelIndices.every(i => channelIds.has(i)) ? z
+    : { ...z, channelIndices: z.channelIndices.filter(i => channelIds.has(i)) });
+  const scanLists = cp.scanLists.map(sl => {
+    if (sl.channelIndices.every(i => channelIds.has(i))) return sl;
+    const keep = sl.channelIndices.map(i => channelIds.has(i));
+    return { ...sl, channelIndices: sl.channelIndices.filter((_, p) => keep[p]), entryFlags: sl.entryFlags.filter((_, p) => keep[p]) };
+  });
+  return { ...cp, digitalContacts: contacts, textMessages, zones, scanLists };
 }
 
 /**

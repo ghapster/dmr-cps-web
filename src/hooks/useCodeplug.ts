@@ -82,9 +82,24 @@ export function useCodeplug() {
   }, [updateCodeplug]);
 
   const deleteChannels = useCallback((indices: number[]) => {
+    // Also drop the deleted channels from zones and scan lists; otherwise they
+    // keep pointing at an empty channel slot on the radio.
+    const gone = new Set(indices);
     updateCodeplug(cp => ({
       ...cp,
-      channels: cp.channels.filter(ch => !indices.includes(ch.index)),
+      channels: cp.channels.filter(ch => !gone.has(ch.index)),
+      zones: cp.zones.map(z => z.channelIndices.some(i => gone.has(i))
+        ? { ...z, channelIndices: z.channelIndices.filter(i => !gone.has(i)) }
+        : z),
+      scanLists: cp.scanLists.map(sl => {
+        if (!sl.channelIndices.some(i => gone.has(i))) return sl;
+        const keep = sl.channelIndices.map(i => !gone.has(i));
+        return {
+          ...sl,
+          channelIndices: sl.channelIndices.filter((_, p) => keep[p]),
+          entryFlags: sl.entryFlags.filter((_, p) => keep[p]),
+        };
+      }),
     }));
   }, [updateCodeplug]);
 
